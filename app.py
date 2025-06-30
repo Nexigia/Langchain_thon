@@ -195,19 +195,40 @@ class RAGChain:
 
 # NLTK 데이터 다운로드 함수
 def download_nltk_data():
-    try:
-        nltk.data.find('tokenizers/punkt')
-    except nltk.downloader.DownloadError:
-        st.info("NLTK 'punkt' 데이터를 다운로드합니다...")
-        nltk.download('punkt', quiet=True)
-    
-    try:
-        nltk.data.find('taggers/averaged_perceptron_tagger')
-    except nltk.downloader.DownloadError:
-        st.info("NLTK 'averaged_perceptron_tagger' 데이터를 다운로드합니다...")
-        nltk.download('averaged_perceptron_tagger', quiet=True)
-    
-    st.success("✅ NLTK 데이터 다운로드 완료!")
+    st.info("NLTK 데이터를 확인하고 다운로드합니다...")
+
+    # NLTK 데이터가 저장될 경로를 명시적으로 지정합니다.
+    # Streamlit Cloud 환경에서 쓰기 가능한 경로여야 합니다.
+    # 일반적으로 앱의 작업 디렉토리 내에 폴더를 만드는 것이 안전합니다.
+    nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
+    if not os.path.exists(nltk_data_path):
+        os.makedirs(nltk_data_path)
+    # NLTK가 데이터를 찾을 경로 목록에 추가합니다.
+    nltk.data.path.append(nltk_data_path)
+
+    # 다운로드할 NLTK 데이터셋 목록
+    datasets = ['punkt', 'averaged_perceptron_tagger']
+
+    for dataset in datasets:
+        try:
+            # 데이터가 이미 있는지 확인합니다.
+            if dataset == 'punkt':
+                nltk.data.find(f'tokenizers/{dataset}')
+            else: # averaged_perceptron_tagger 같은 태거는 taggers 폴더에 있습니다.
+                nltk.data.find(f'taggers/{dataset}')
+            st.success(f"✅ NLTK '{dataset}' 데이터 확인 완료!")
+        except LookupError: # NLTK 데이터가 없을 때 nltk.data.find()가 발생시키는 일반적인 예외
+            st.warning(f"NLTK '{dataset}' 데이터가 없습니다. 다운로드합니다...")
+            try:
+                # 데이터를 지정된 경로에 다운로드합니다. (quiet=True로 불필요한 출력 제거)
+                nltk.download(dataset, quiet=True, download_dir=nltk_data_path)
+                st.success(f"✅ NLTK '{dataset}' 데이터 다운로드 성공!")
+            except Exception as e_download: # 다운로드 중 발생할 수 있는 모든 오류를 잡습니다.
+                st.error(f"NLTK '{dataset}' 데이터 다운로드 최종 실패: {e_download}")
+                st.stop() # 필수 데이터이므로 실패 시 앱을 중지합니다.
+        except Exception as e_other: # LookupError 외의 다른 예상치 못한 오류를 잡습니다.
+            st.error(f"NLTK '{dataset}' 데이터 확인 중 예상치 못한 오류 발생: {e_other}")
+            st.stop() # 필수 데이터이므로 실패 시 앱을 중지합니다.
 
 def initialize_rag_system(model_name):
     """RAG 시스템 초기화"""
@@ -238,7 +259,7 @@ def format_output(response):
 # ====================================
 
 def main():
-    
+
     # NLTK 데이터 다운로드
     download_nltk_data()
 
