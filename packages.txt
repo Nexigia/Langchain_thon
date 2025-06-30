@@ -6,3 +6,4 @@ libleptonica-dev
 unzip
 wget
 build-essential
+pkg-config
