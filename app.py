@@ -9,6 +9,7 @@ from langchain_community.chat_message_histories.streamlit import StreamlitChatMe
 from langchain_community.document_loaders import DirectoryLoader # DirectoryLoader를 임포트합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+import nltk
 
 # OpenAI API Key 설정
 # Streamlit의 secrets에 'OPENAI_API_KEY'를 설정
@@ -191,6 +192,23 @@ class RAGChain:
 # ====================================
 
 @st.cache_resource
+
+# NLTK 데이터 다운로드 함수
+def download_nltk_data():
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except nltk.downloader.DownloadError:
+        st.info("NLTK 'punkt' 데이터를 다운로드합니다...")
+        nltk.download('punkt', quiet=True)
+    
+    try:
+        nltk.data.find('taggers/averaged_perceptron_tagger')
+    except nltk.downloader.DownloadError:
+        st.info("NLTK 'averaged_perceptron_tagger' 데이터를 다운로드합니다...")
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+    
+    st.success("✅ NLTK 데이터 다운로드 완료!")
+
 def initialize_rag_system(model_name):
     """RAG 시스템 초기화"""
     st.info("🔄 RAG 시스템 초기화 중...")
@@ -220,6 +238,10 @@ def format_output(response):
 # ====================================
 
 def main():
+    
+    # NLTK 데이터 다운로드
+    download_nltk_data()
+
     # 페이지 제목과 아이콘을 좀 더 일반적인 내용으로 변경
     st.set_page_config(
         page_title="RAG 문서 Q&A 챗봇",
@@ -237,6 +259,22 @@ def main():
             ("gpt-4o-mini", "gpt-3.5-turbo-0125", "gpt-4o"),
             help="사용할 GPT 모델을 선택하세요"
         )
+        st.markdown("---")
+        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        st.markdown("---")
+        st.markdown("### 📊 RAG 프로세스")
+        st.markdown("""
+        **Pre-processing:**
+        1. 📄 문서 로드
+        2. ✂️ 텍스트 분할
+        3. 💾 벡터 DB 저장
+
+        **Runtime:**
+        1. 🔍 유사도 검색
+        2. 📝 프롬프트 구성
+        3. 🤖 LLM 추론
+        4. 📋 결과 출력
+        """)
 
     rag_chain = initialize_rag_system(model_option)
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
