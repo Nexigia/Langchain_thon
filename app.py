@@ -11,9 +11,13 @@ from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, Te
 # RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-# ★★★ AIMessage 임포트 추가 ★★★
+# AIMessage 임포트 추가
 from langchain_core.messages import AIMessage
 import nltk 
+
+# pydantic 임포트와 Intent 모델은 더 이상 사용하지 않으므로 제거합니다.
+# from pydantic import BaseModel, Field
+# from typing import Literal 
 
 # OpenAI API Key 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
@@ -166,12 +170,13 @@ class RAGChain:
         return rag_chain
 
     def get_conversational_chain(self, chat_history):
+        # output_messages_key="answer"를 설정하면 딕셔너리 형태로 반환될 것으로 기대
         return RunnableWithMessageHistory(
             self.chain,
             lambda session_id: chat_history,
             input_messages_key="input",
             history_messages_key="history",
-            output_messages_key="answer", # 이 키로 딕셔너리가 반환될 것으로 예상
+            output_messages_key="answer", 
         )
 
 # ====================================
@@ -183,7 +188,7 @@ def download_nltk_data():
     nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
     if not os.path.exists(nltk_data_path):
         os.makedirs(nltk_data_path)
-    nltk.data.append(nltk_data_path) # nltk.data.path.append()로 변경
+    nltk.data.path.append(nltk_data_path) # .path 속성에 append
 
     datasets = ['punkt', 'averaged_perceptron_tagger']
 
@@ -267,22 +272,24 @@ def initialize_rag_system(model_name):
 
 
 def format_output(response):
-    """결과 포맷팅"""
+    """
+    체인 응답을 통일된 딕셔너리 형태로 포맷팅합니다.
+    response는 dict 또는 AIMessage 객체일 수 있습니다.
+    """
     answer = '답변을 생성할 수 없습니다.'
     context = []
     source_count = 0
 
-    # 응답이 딕셔너리 형태일 때 (RAG 체인 또는 일반 LLM 체인에서 'answer' 키가 있을 때)
     if isinstance(response, dict):
         answer = response.get('answer', answer)
         context = response.get('context', context)
         source_count = len(context)
-    # ★★★ AIMessage 객체일 경우 특별 처리 ★★★
     elif isinstance(response, AIMessage): 
-        answer = response.content # AIMessage의 내용은 .content 속성에 있습니다.
-        context = [] # AIMessage 자체에는 context 정보가 없음
+        answer = response.content 
+        context = [] 
         source_count = 0
-    else: # 다른 예상치 못한 타입일 경우 문자열로 변환
+    # 다른 예상치 못한 타입일 경우 문자열로 변환 (최후의 수단)
+    else: 
         answer = str(response)
 
     return {
@@ -352,19 +359,19 @@ def main():
         lambda session_id: chat_history, 
         input_messages_key="input",
         history_messages_key="history",
-        output_messages_key="answer", # 이 키로 딕셔너리가 반환될 것으로 예상
+        output_messages_key="answer", 
     )
     
     # --- 의도 감지 체인 생성 (텍스트 반환 및 파싱으로 변경) ---
     intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
-    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) # temperature=0으로 일관된 분류 유도
+    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) 
     
     # 프롬프트와 LLM을 직접 연결 (structured_output 사용 제거)
     intent_detection_chain_pre_invoke = intent_detection_prompt | intent_detection_llm
     # --------------------------------------------------------
     
     if not chat_history.messages:
-        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! �")
+        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
 
     for msg in chat_history.messages:
         st.chat_message(msg.type).write(msg.content)
@@ -391,49 +398,46 @@ def main():
                     if intent == "GENERAL": 
                         st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
                         config = {"configurable": {"session_id": "general_chat"}}
-                        # general_conversational_chain은 RunnableWithMessageHistory로 output_messages_key="answer"가 있으므로 dict를 반환해야 함.
-                        # 하지만 만약을 대비해 format_output에서 AIMessage 처리 로직이 있음.
-                        response_from_llm = general_conversational_chain.invoke({"input": prompt}, config)
-                        final_answer = format_output(response_from_llm)['answer'] # format_output을 통해 'answer' 추출
+                        # invoke 결과는 format_output으로 통일된 딕셔너리 형태로 변환 후 사용
+                        response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                        final_answer = response_from_llm_formatted['answer']
 
                     elif intent == "DOCUMENTS":
                         st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
                         config = {"configurable": {"session_id": "rag_chat"}}
-                        # conversational_rag_chain도 RunnableWithMessageHistory로 output_messages_key="answer"가 있으므로 dict를 반환해야 함.
-                        response_from_rag = conversational_rag_chain.invoke({"input": prompt}, config)
+                        # invoke 결과는 format_output으로 통일된 딕셔너리 형태로 변환 후 사용
+                        response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
                         
-                        # format_output을 통해 응답을 통일된 딕셔너리 형태로 변환
-                        formatted_response_from_rag = format_output(response_from_rag)
-                        rag_answer_content = formatted_response_from_rag['answer'] # 'answer' 키로 내용 접근
+                        rag_answer_content = response_from_rag_formatted['answer']
 
                         # LLM이 "문서에 관련 정보가 없습니다."를 생성하거나 컨텍스트가 없으면 폴백
-                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not formatted_response_from_rag.get('context'):
+                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
                             st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다.")
                             config = {"configurable": {"session_id": "general_chat"}} 
-                            response_from_llm = general_conversational_chain.invoke({"input": prompt}, config)
-                            final_answer = format_output(response_from_llm)['answer'] # format_output을 통해 'answer' 추출
+                            response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                            final_answer = response_from_llm_formatted['answer']
                         else:
-                            final_answer = formatted_response_from_rag['answer']
-                            final_context = formatted_response_from_rag['context']
-                            final_source_count = formatted_response_from_rag['source_count']
+                            final_answer = response_from_rag_formatted['answer']
+                            final_context = response_from_rag_formatted['context']
+                            final_source_count = response_from_rag_formatted['source_count']
                             used_rag_successfully = True 
 
                     else: # 의도 파악 실패 시 기본 RAG 모드로 진행 (기존 로직)
                         st.warning(f"의도 파악에 실패했습니다. (응답: {intent}). 기본적으로 RAG 모드로 진행합니다.")
                         config = {"configurable": {"session_id": "rag_chat"}}
-                        response_from_rag = conversational_rag_chain.invoke({"input": prompt}, config)
+                        # invoke 결과는 format_output으로 통일된 딕셔너리 형태로 변환 후 사용
+                        response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
                         
-                        formatted_response_from_rag = format_output(response_from_rag)
-                        rag_answer_content = formatted_response_from_rag['answer']
-                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not formatted_response_from_rag.get('context'):
+                        rag_answer_content = response_from_rag_formatted['answer']
+                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
                             st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다. (의도 파악 실패 후)")
                             config = {"configurable": {"session_id": "general_chat"}} 
-                            response_from_llm = general_conversational_chain.invoke({"input": prompt}, config)
-                            final_answer = format_output(response_from_llm)['answer']
+                            response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                            final_answer = response_from_llm_formatted['answer']
                         else:
-                            final_answer = formatted_response_from_rag['answer']
-                            final_context = formatted_response_from_rag['context']
-                            final_source_count = formatted_rag_response['source_count']
+                            final_answer = response_from_rag_formatted['answer']
+                            final_context = response_from_rag_formatted['context']
+                            final_source_count = response_from_rag_formatted['source_count']
                             used_rag_successfully = True
 
                     st.write(final_answer)
