@@ -9,7 +9,6 @@ unstructured
 python-docx
 tiktoken
 poppler-utils
-tesseract-ocr
 python-docx 
 Pillow
 unstructured
