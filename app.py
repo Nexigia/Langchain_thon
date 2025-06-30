@@ -61,7 +61,7 @@ class DocumentProcessor:
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
         """
-        text_splitter = RecursiveCharacterTextSplitter(
+        text_splitter = TokenTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             encoding_name="cl100k_base"
