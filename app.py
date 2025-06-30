@@ -24,35 +24,6 @@ os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 class DocumentProcessor:
     """문서 전처리를 담당하는 클래스"""
-
-    # 이 load_documents 함수는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체되므로,
-    # 여기서는 사용되지 않습니다.
-    @staticmethod
-    @st.cache_resource
-    def load_documents(directory_path: str):
-        """
-        1. 문서 로드 (Document Load)
-        (이 함수는 이제 직접적으로 사용되지 않습니다. 개별 파일 로딩 로직으로 대체됩니다.)
-        """
-        st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
-        return []
-
-    @staticmethod
-    def split_text(documents, chunk_size=150, chunk_overlap=30): # chunk_size를 150으로 조정했습니다
-        """
-        2. Text Split (청크 분할)
-        - 불러온 문서를 chunk 단위로 분할합니다.
-        - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
-        """
-        text_splitter = RecursiveCharacterTextSplitter( 
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
-        )
-        split_docs = text_splitter.split_documents(documents)
-        # st.info(f"✂️ 텍스트 분할 완료: {len(split_docs)} 청크")
-        return split_docs
-
     @staticmethod
     # @st.cache_resource # 이 캐시는 계속 주석 처리되어 있어야 합니다!
     def create_vector_store(_split_docs, embeddings): 
