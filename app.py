@@ -19,7 +19,7 @@ import nltk # NLTK 데이터 다운로드를 위해 필요합니다.
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 # ====================================
-# PRE-PROCESSING 단계 (수정된 부분 포함)
+# PRE-PROCESSING 단계
 # ====================================
 
 class DocumentProcessor:
@@ -38,13 +38,13 @@ class DocumentProcessor:
         return []
 
     @staticmethod
-    def split_text(documents, chunk_size=150, chunk_overlap=30): # ★★★ chunk_size를 150으로 조정했습니다 ★★★
+    def split_text(documents, chunk_size=150, chunk_overlap=30): # chunk_size를 150으로 조정했습니다
         """
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
         - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
         """
-        text_splitter = RecursiveCharacterTextSplitter( # ★★★ RecursiveCharacterTextSplitter 사용 ★★★
+        text_splitter = RecursiveCharacterTextSplitter( 
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
@@ -54,8 +54,8 @@ class DocumentProcessor:
         return split_docs
 
     @staticmethod
-    # @st.cache_resource # ★★★ 이 캐시는 계속 주석 처리되어 있어야 합니다! ★★★
-    def create_vector_store(_split_docs, embeddings): # ★★★ embeddings 객체를 인자로 받도록 수정 ★★★
+    # @st.cache_resource # 이 캐시는 계속 주석 처리되어 있어야 합니다!
+    def create_vector_store(_split_docs, embeddings): 
         """
         4. DB 저장 (Vector Store)
         - 변환된 벡터를 FAISS DB에 저장합니다.
@@ -65,11 +65,12 @@ class DocumentProcessor:
         return vectorstore
     
     @staticmethod
-    def add_documents_to_vector_store(vectorstore, split_docs, embeddings): # ★★★ embeddings 객체를 인자로 받도록 수정 ★★★
+    def add_documents_to_vector_store(vectorstore, split_docs, embeddings): # embeddings 인자를 받아도 됩니다.
         """
         기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
         """
-        vectorstore.add_documents(split_docs, embeddings)
+        # ★★★ vectorstore.add_documents 호출 시 embeddings 인자를 제거합니다! ★★★
+        vectorstore.add_documents(split_docs) # <- 이 줄을 이렇게 수정!
         st.success("💾 벡터 DB에 문서 청크 추가 완료!")
         return vectorstore
 
@@ -241,7 +242,7 @@ def initialize_rag_system(model_name):
                 elif filename.lower().endswith(".docx"):
                     loader = Docx2txtLoader(filepath)
                 elif filename.lower().endswith(".pptx"):
-                    loader = UnstructuredPowerPointLoader(filepath) # ★★★ UnstructuredPowerPointLoader 사용 ★★★
+                    loader = UnstructuredPowerPointLoader(filepath) 
                 elif filename.lower().endswith(".txt"):
                     loader = TextLoader(filepath)
                 else:
