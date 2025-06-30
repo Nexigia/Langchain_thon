@@ -10,6 +10,8 @@ from langchain_community.document_loaders import DirectoryLoader # DirectoryLoad
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 import nltk
+from langchain.text_splitter import RecursiveCharacterTextSplitter, TokenTextSplitter
+
 
 # OpenAI API Key 설정
 # Streamlit의 secrets에 'OPENAI_API_KEY'를 설정
@@ -62,7 +64,7 @@ class DocumentProcessor:
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
+            encoding_name="cl100k_base"
         )
         split_docs = text_splitter.split_documents(documents)
         st.info(f"✂️ 텍스트 분할 완료: {len(split_docs)} 청크")
