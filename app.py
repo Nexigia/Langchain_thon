@@ -336,8 +336,8 @@ def main():
             ("gpt-4o-mini", "gpt-3.5-turbo-0125", "gpt-4o"),
             help="사용할 GPT 모델을 선택하세요"
         )
-        st.markdown("---")
-        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        # st.markdown("---")
+        # st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
         st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
