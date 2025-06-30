@@ -6,14 +6,10 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-# DirectoryLoader는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체됩니다.
-# 개별 파일 로더들을 임포트합니다.
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredFileLoader
-# RecursiveCharacterTextSplitter만 사용합니다. TokenTextSplitter는 제거합니다.
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader 
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-import nltk # NLTK 데이터 다운로드를 위해 필요합니다.
-
+import nltk 
 
 # OpenAI API Key 설정
 # Streamlit의 secrets에 'OPENAI_API_KEY'를 설정
