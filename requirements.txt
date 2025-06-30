@@ -13,3 +13,4 @@ Pillow
 nltk==3.8.1
 docx2txt
 pandas
+pydantic
