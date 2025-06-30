@@ -339,7 +339,7 @@ def main():
     )
 
     st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
-    st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
+    # st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
 
     with st.sidebar:
         st.header("🔧 설정")
