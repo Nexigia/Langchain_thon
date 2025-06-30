@@ -350,8 +350,8 @@ def main():
         )
         st.markdown("---")
         # is_general_question_mode 체크박스 제거
-        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
-        st.markdown("---")
+        # st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        # st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
         **Pre-processing:**
@@ -380,7 +380,7 @@ def main():
     prompt_manager = PromptManager() 
     general_llm_chain_template = prompt_manager.get_general_qa_prompt() 
     
-    general_qa_chain_raw = create_stuff_documents_chain(llm_for_general_qa, general_llm_chain_template) 
+    general_qa_chain_raw = general_llm_chain_template | llm_for_general_qa
     general_conversational_chain = RunnableWithMessageHistory(
         general_qa_chain_raw, 
         lambda session_id: chat_history, 
