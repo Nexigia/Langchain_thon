@@ -13,9 +13,11 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 import nltk 
 
+# ★★★ pydantic 임포트 추가 ★★★
+from pydantic import BaseModel, Field
+from typing import Literal # Literal 타입 추가
 
 # OpenAI API Key 설정
-# Streamlit의 secrets에 'OPENAI_API_KEY'를 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 # ====================================
@@ -28,15 +30,11 @@ class DocumentProcessor:
     @staticmethod
     @st.cache_resource
     def load_documents(directory_path: str):
-        """
-        1. 문서 로드 (Document Load)
-        (이 함수는 이제 직접적으로 사용되지 않습니다. 개별 파일 로딩 로직으로 대체됩니다.)
-        """
-        # st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
+        st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
         return []
 
     @staticmethod
-    def split_text(documents, chunk_size=100, chunk_overlap=20): 
+    def split_text(documents, chunk_size=100, chunk_overlap=20): # 사용자 제공 코드의 chunk_size=100 유지
         """
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
@@ -48,7 +46,6 @@ class DocumentProcessor:
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
         )
         split_docs = text_splitter.split_documents(documents)
-        # st.info(f"✂️ 텍스트 분할 완료: {len(split_docs)} 청크")
         return split_docs
 
     @staticmethod
@@ -59,7 +56,6 @@ class DocumentProcessor:
         - 변환된 벡터를 FAISS DB에 저장합니다.
         """
         vectorstore = FAISS.from_documents(_split_docs, embeddings)
-        # st.success("💾 벡터 DB 생성 완료!")
         return vectorstore
     
     @staticmethod
@@ -68,12 +64,18 @@ class DocumentProcessor:
         기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
         """
         vectorstore.add_documents(split_docs) 
-        # st.success("💾 벡터 DB에 문서 청크 추가 완료!")
         return vectorstore
 
 # ====================================
 # RUNTIME 단계
 # ====================================
+
+# ★★★ 의도 분류를 위한 Pydantic 모델 정의 ★★★
+class Intent(BaseModel):
+    """사용자 질문의 의도를 분류합니다."""
+    category: Literal["DOCUMENTS", "GENERAL"] = Field(
+        description="질문이 문서 관련 질문인지 (DOCUMENTS) 또는 일반 지식 질문인지 (GENERAL) 분류합니다."
+    )
 
 class RAGRetriever:
     """검색기(Retriever) 관리 클래스"""
@@ -149,18 +151,13 @@ class PromptManager:
         ])
 
     @staticmethod
-    def get_intent_detection_prompt(): # ★★★ 새로운 의도 감지 프롬프트 추가 ★★★
+    def get_intent_detection_prompt(): 
         """
         사용자 질문의 의도를 감지하기 위한 프롬프트입니다.
-        """
-        intent_system_prompt = """당신은 질문 분류 전문가입니다. 사용자의 질문이 다음 두 가지 중 어디에 해당하는지 분류하세요:
-        - DOCUMENTS: 질문이 업로드된 문서의 내용과 관련된 것 같습니다. (정보 검색 필요)
-        - GENERAL: 질문이 일반적인 지식에 관한 것이고, 문서 검색이 필요하지 않습니다.
-
-        오직 'DOCUMENTS' 또는 'GENERAL' 중 하나로만 답변하세요. 다른 설명은 필요 없습니다.
+        with_structured_output과 함께 사용될 것이므로, LLM에게 명확한 지시만 제공합니다.
         """
         return ChatPromptTemplate.from_messages([
-            ("system", intent_system_prompt),
+            ("system", "사용자의 질문 의도를 분류하세요. 문서 관련 질문이면 'DOCUMENTS', 일반적인 지식 질문이면 'GENERAL'."),
             ("human", "질문: {question}"),
         ])
 
@@ -240,21 +237,19 @@ def download_nltk_data():
 
 def initialize_rag_system(model_name):
     """RAG 시스템 초기화 (개별 문서 처리 방식)"""
-    # st.info("🔄 RAG 시스템 초기화 중...") 
-    
     data_path = "./data" # 문서 폴더 경로
     vectorstore = None # 초기 벡터 저장소는 None으로 설정
     
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
     
-    # st.info("📂 문서 폴더에서 파일을 찾고 있습니다...") 
+    general_llm_manager = LLMManager(model_name)
+    general_llm = general_llm_manager.get_llm()
 
     processed_any_document = False
     for filename in os.listdir(data_path):
         filepath = os.path.join(data_path, filename)
         
         if os.path.isfile(filepath): 
-            # st.info(f"📄 파일 로드 시작: {filename}") 
             try:
                 if filename.lower().endswith(".pdf"):
                     loader = PyPDFLoader(filepath)
@@ -267,13 +262,11 @@ def initialize_rag_system(model_name):
                 # elif filename.lower().endswith(".csv"): # CSV 파일 처리가 필요하다면 이 주석을 해제하고 CSVLoader를 임포트 및 requirements.txt에 pandas 추가
                 #     loader = CSVLoader(filepath)
                 else:
-                    # st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.") 
                     continue 
 
                 single_document_list = loader.load() 
                 
                 if not single_document_list:
-                    # st.warning(f"파일 {filename}에서 문서를 로드하지 못했습니다. 건너킵니다.") 
                     continue
 
                 split_single_doc_chunks = DocumentProcessor.split_text(single_document_list)
@@ -292,27 +285,23 @@ def initialize_rag_system(model_name):
     if not processed_any_document or vectorstore is None:
         st.error("❌ 'data' 폴더에 처리할 문서가 없거나 모든 문서 처리 중 오류가 발생하여 벡터 DB를 생성하지 못했습니다.") 
         return None 
-
-    # st.success("✅ 모든 문서 처리 및 벡터 DB 생성 완료!") 
     
-    # 벡터 저장소가 성공적으로 생성된 경우 RAG 체인 구성
     rag_retriever = RAGRetriever(vectorstore)
     retriever = rag_retriever.get_retriever()
     llm_manager = LLMManager(model_name)
     llm = llm_manager.get_llm()
     rag_chain = RAGChain(retriever, llm) # RAG 체인
     
-    # st.success("✅ RAG 시스템 초기화 완료!") 
-    return rag_chain, llm # rag_chain과 LLM 인스턴스를 함께 반환 (일반 질문 체인에 사용)
+    return rag_chain, general_llm 
 
 
 def format_output(response):
     """결과 포맷팅"""
-    if isinstance(response, dict):
+    if isinstance(response, dict) and 'answer' in response:
         answer = response.get('answer', '답변을 생성할 수 없습니다.')
-        context = response.get('context', [])
+        context = response.get('context', []) 
     else: 
-        answer = response # LLM이 직접 문자열을 반환하는 경우
+        answer = str(response) 
         context = []
 
     return {
@@ -327,7 +316,6 @@ def format_output(response):
 
 def main():
 
-    # NLTK 데이터 다운로드
     nltk_download_status = download_nltk_data()
     if nltk_download_status is None: 
         return
@@ -338,8 +326,8 @@ def main():
         layout="wide"
     )
 
-    st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
-    # st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
+    st.header("🤖 RAG 기반 문서 Q&A 챗봇 �")
+    st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
 
     with st.sidebar:
         st.header("🔧 설정")
@@ -349,9 +337,8 @@ def main():
             help="사용할 GPT 모델을 선택하세요"
         )
         st.markdown("---")
-        # is_general_question_mode 체크박스 제거
-        # st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
-        # st.markdown("---")
+        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
         **Pre-processing:**
@@ -367,20 +354,18 @@ def main():
         5. 📋 결과 출력
         """)
 
-    # initialize_rag_system은 이제 rag_chain과 llm(general_llm)을 함께 반환합니다.
-    rag_chain_wrapper, llm_for_general_qa = initialize_rag_system(model_option) # 이름 변경
+    rag_chain_wrapper, llm_for_general_qa = initialize_rag_system(model_option) 
     
-    if rag_chain_wrapper is None: # RAG 시스템 초기화 실패 시 앱 중단
+    if rag_chain_wrapper is None: 
         return
 
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
     conversational_rag_chain = rag_chain_wrapper.get_conversational_chain(chat_history)
     
-    # --- 일반 질문 모드용 LLM 체인 생성 ---
     prompt_manager = PromptManager() 
     general_llm_chain_template = prompt_manager.get_general_qa_prompt() 
     
-    general_qa_chain_raw = general_llm_chain_template | llm_for_general_qa
+    general_qa_chain_raw = general_llm_chain_template | llm_for_general_qa # LCEL 사용
     general_conversational_chain = RunnableWithMessageHistory(
         general_qa_chain_raw, 
         lambda session_id: chat_history, 
@@ -388,21 +373,17 @@ def main():
         history_messages_key="history",
         output_messages_key="answer", 
     )
-    # --- 의도 감지 체인 생성 ---
-    intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
-    # 이 체인은 대화 히스토리 없이 사용자의 질문만 받도록 간단하게 구성
-    intent_detection_chain = ChatOpenAI(model=model_option, temperature=0).bind(
-        response_format={"type": "text"} # 텍스트 형식으로 응답 받도록 강제
-    ).with_structured_output(
-        schema={"type": "string", "enum": ["DOCUMENTS", "GENERAL"]} # 응답을 특정 문자열로 제한
-    ) # ★★★ 의도 감지 체인 생성 시 형식 지정 ★★★
     
-    # 의도 감지 체인을 RunnableWithMessageHistory로 래핑하여 채팅 히스토리도 사용 가능하게 함 (선택 사항)
-    # 그러나 의도 감지는 보통 질문 자체에 집중하므로 간단한 체인으로도 충분.
-    # 여기서는 간단하게 만들고, 호출 시 chat_history는 무시.
-
-
-    # 초기 메시지를 일반적인 내용으로 변경
+    # --- 의도 감지 체인 생성 (Pydantic 모델 사용) ---
+    intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
+    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) 
+    
+    # 프롬프트와 LLM을 연결하고, Pydantic 모델을 schema로 전달
+    intent_detection_chain_pre_invoke = intent_detection_prompt | intent_detection_llm.with_structured_output(
+        schema=Intent # ★★★ Pydantic 모델 Intent를 schema로 전달 ★★★
+    )
+    # --------------------------------------------------
+    
     if not chat_history.messages:
         chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
 
@@ -416,59 +397,68 @@ def main():
             with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
                 try:
                     # 1. 질문 의도 감지
-                    # 의도 감지 시에는 채팅 히스토리 없이 현재 질문만 보내는 것이 더 명확할 수 있습니다.
-                    intent_response = intent_detection_chain.invoke(
-                        {"question": prompt}
+                    intent_result_obj = intent_detection_chain_pre_invoke.invoke(
+                        {"question": prompt} 
                     )
                     
-                    # LLM의 응답이 dict 형태라면 'text' 키를, 아니면 직접 문자열을 사용
-                    # structured_output을 사용했으므로 바로 문자열이 올 것으로 예상
-                    intent = intent_response # 바로 'DOCUMENTS' 또는 'GENERAL' 문자열
+                    # Pydantic 모델의 결과는 .category 속성으로 접근
+                    intent = intent_result_obj.category.strip().upper() 
 
-                    if intent.strip().upper() == "GENERAL": # LLM이 반환한 의도에 따라 분기
+                    final_answer = ""
+                    final_context = []
+                    final_source_count = 0
+                    used_rag_successfully = False 
+
+                    if intent == "GENERAL": 
                         st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
                         config = {"configurable": {"session_id": "general_chat"}}
-                        response = general_conversational_chain.invoke({"input": prompt}, config)
-                        st.write(response['answer']) # response는 dict 형태일 것임 (answer 키 포함)
-                        # 일반 질문 모드이므로 참고 문서는 표시하지 않음
+                        response_from_llm = general_conversational_chain.invoke({"input": prompt}, config)
+                        final_answer = response_from_llm['answer']
 
-                    elif intent.strip().upper() == "DOCUMENTS":
+                    elif intent == "DOCUMENTS":
                         st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
                         config = {"configurable": {"session_id": "rag_chat"}}
-                        response = conversational_rag_chain.invoke({"input": prompt}, config)
-                        formatted_response = format_output(response)
-                        st.write(formatted_response['answer'])
+                        response_from_rag = conversational_rag_chain.invoke({"input": prompt}, config)
+                        
+                        rag_answer_content = response_from_rag.get('answer', '')
 
-                        with st.expander(f"📄 참고 문서 ({formatted_response['source_count']}개)"):
-                            if formatted_response['context']:
-                                for i, doc in enumerate(formatted_response['context']):
-                                    st.markdown(f"**📖 문서 {i+1}**")
-                                    source = doc.metadata.get('source', '출처 정보 없음')
-                                    st.markdown(f"**출처:** `{source}`")
-                                    if 'page' in doc.metadata:
-                                        page = doc.metadata.get('page')
-                                        st.markdown(f"**페이지:** {page + 1}")
-                                    st.text_area(
-                                        f"문서 {i+1} 내용",
-                                        doc.page_content,
-                                        height=150,
-                                        key=f"doc_{i}",
-                                        label_visibility="collapsed"
-                                    )
-                                    if i < len(formatted_response['context']) - 1:
-                                        st.markdown("---")
-                            else:
-                                st.info("답변에 참고한 문서를 찾을 수 없습니다.")
-                    else:
+                        # LLM이 "문서에 관련 정보가 없습니다."를 생성하거나 컨텍스트가 없으면 폴백
+                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag.get('context'):
+                            st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다.")
+                            config = {"configurable": {"session_id": "general_chat"}} 
+                            response_from_llm = general_conversational_chain.invoke({"input": prompt}, config)
+                            final_answer = response_from_llm['answer']
+                        else:
+                            formatted_rag_response = format_output(response_from_rag)
+                            final_answer = formatted_rag_response['answer']
+                            final_context = formatted_rag_response['context']
+                            final_source_count = formatted_rag_response['source_count']
+                            used_rag_successfully = True 
+
+                    else: # 의도 파악 실패 시 기본 RAG 모드로 진행 (기존 로직)
                         st.warning(f"의도 파악에 실패했습니다. (응답: {intent}). 기본적으로 RAG 모드로 진행합니다.")
                         config = {"configurable": {"session_id": "rag_chat"}}
-                        response = conversational_rag_chain.invoke({"input": prompt}, config)
-                        formatted_response = format_output(response)
-                        st.write(formatted_response['answer'])
+                        response_from_rag = conversational_rag_chain.invoke({"input": prompt}, config)
+                        
+                        rag_answer_content = response_from_rag.get('answer', '')
+                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag.get('context'):
+                            st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다. (의도 파악 실패 후)")
+                            config = {"configurable": {"session_id": "general_chat"}} 
+                            response_from_llm = general_conversational_chain.invoke({"input": prompt}, config)
+                            final_answer = response_from_llm['answer']
+                        else:
+                            formatted_rag_response = format_output(response_from_rag)
+                            final_answer = formatted_rag_response['answer']
+                            final_context = formatted_rag_response['context']
+                            final_source_count = formatted_rag_response['source_count']
+                            used_rag_successfully = True
 
-                        with st.expander(f"📄 참고 문서 ({formatted_response['source_count']}개)"):
-                            if formatted_response['context']:
-                                for i, doc in enumerate(formatted_response['context']):
+                    st.write(final_answer)
+
+                    if used_rag_successfully:
+                        with st.expander(f"📄 참고 문서 ({final_source_count}개)"):
+                            if final_context: 
+                                for i, doc in enumerate(final_context):
                                     st.markdown(f"**📖 문서 {i+1}**")
                                     source = doc.metadata.get('source', '출처 정보 없음')
                                     st.markdown(f"**출처:** `{source}`")
@@ -482,10 +472,12 @@ def main():
                                         key=f"doc_{i}",
                                         label_visibility="collapsed"
                                     )
-                                    if i < len(formatted_response['context']) - 1:
+                                    if i < len(final_context) - 1:
                                         st.markdown("---")
-                            else:
-                                st.info("답변에 참고한 문서를 찾을 수 없습니다.")
+                            else: 
+                                st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
+                    else: 
+                        st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
@@ -493,3 +485,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+�
