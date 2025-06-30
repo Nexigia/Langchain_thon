@@ -6,11 +6,13 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-from langchain_community.document_loaders import DirectoryLoader # DirectoryLoader를 임포트합니다.
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# DirectoryLoader는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체됩니다.
+# 개별 파일 로더들을 임포트합니다.
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, PPTXLoader, TextLoader 
+# RecursiveCharacterTextSplitter만 사용합니다. TokenTextSplitter는 제거합니다.
+from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-import nltk
-from langchain.text_splitter import RecursiveCharacterTextSplitter, TokenTextSplitter
+import nltk # NLTK 데이터 다운로드를 위해 필요합니다.
 
 
 # OpenAI API Key 설정
@@ -24,62 +26,56 @@ os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 class DocumentProcessor:
     """문서 전처리를 담당하는 클래스"""
 
+    # 이 load_documents 함수는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체되므로,
+    # 여기서는 사용되지 않습니다. (다만 코드 구조 유지를 위해 남겨둘 수 있습니다.)
     @staticmethod
     @st.cache_resource
     def load_documents(directory_path: str):
         """
         1. 문서 로드 (Document Load)
         - 지정된 디렉토리에서 지원하는 모든 형식의 파일(.pdf, .txt, .docx 등)을 읽어들입니다.
+        (이 함수는 이제 직접적으로 사용되지 않습니다. 개별 파일 로딩 로직으로 대체됩니다.)
         """
-        if not os.path.isdir(directory_path):
-            st.error(f"오류: '{directory_path}' 디렉토리를 찾을 수 없습니다.")
-            st.stop()
-
-        # DirectoryLoader를 사용하여 다양한 파일 형식 로드
-        # show_progress=True로 설정하여 로딩 진행 상황을 터미널에 표시합니다.
-        # use_multithreading=True로 설정하여 여러 파일을 동시에 빠르게 로드합니다.
-        loader = DirectoryLoader(directory_path, glob="**/*.*", show_progress=True, use_multithreading=True)
-        
-        st.info(f"📁 '{directory_path}' 디렉토리에서 모든 문서를 로드합니다...")
-        
-        try:
-            documents = loader.load()
-        except Exception as e:
-            st.error(f"문서 로드 중 오류가 발생했습니다: {e}")
-            documents = [] # 오류 발생 시 빈 리스트로 초기화
-
-        if not documents:
-            st.error("로드할 문서가 없습니다. 'data' 디렉토리를 확인해주세요.")
-            st.stop()
-
-        st.info(f"📄 총 문서 로드 완료: {len(documents)} 개의 문서")
-        return documents
+        st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
+        return []
 
     @staticmethod
-    def split_text(documents, chunk_size=300, chunk_overlap=50):
+    def split_text(documents, chunk_size=150, chunk_overlap=30): # ★★★ chunk_size를 매우 작게 조정합니다 (150-200 권장) ★★★
         """
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
+        - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
         """
-        text_splitter = TokenTextSplitter(
+        # ★★★ RecursiveCharacterTextSplitter를 사용합니다! ★★★
+        text_splitter = RecursiveCharacterTextSplitter( 
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            encoding_name="cl100k_base"
+            # RecursiveCharacterTextSplitter에서만 사용하는 separators를 다시 추가합니다.
+            separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
         )
         split_docs = text_splitter.split_documents(documents)
         st.info(f"✂️ 텍스트 분할 완료: {len(split_docs)} 청크")
         return split_docs
 
     @staticmethod
-    # @st.cache_resource
-    def create_vector_store(_split_docs):
+    # @st.cache_resource # ★★★ 이 캐시는 계속 주석 처리되어 있어야 합니다! ★★★
+    def create_vector_store(_split_docs, embeddings): # ★★★ embeddings 객체를 인자로 받도록 수정 ★★★
         """
         4. DB 저장 (Vector Store)
         - 변환된 벡터를 FAISS DB에 저장합니다.
         """
-        embeddings = OpenAIEmbeddings(model='text-embedding-3-small')
+        # embeddings 객체는 initialize_rag_system에서 한 번만 생성하여 넘겨줍니다.
         vectorstore = FAISS.from_documents(_split_docs, embeddings)
-        st.success("💾 벡터 DB 저장 완료!")
+        st.success("💾 벡터 DB 생성 완료!")
+        return vectorstore
+    
+    @staticmethod
+    def add_documents_to_vector_store(vectorstore, split_docs, embeddings): # ★★★ embeddings 객체를 인자로 받도록 수정 ★★★
+        """
+        기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
+        """
+        vectorstore.add_documents(split_docs, embeddings)
+        st.success("💾 벡터 DB에 문서 청크 추가 완료!")
         return vectorstore
 
 # ====================================
@@ -128,7 +124,6 @@ class PromptManager:
         2. 프롬프트 (Prompt) - 질문 답변
         - 검색된 문맥을 바탕으로 답변을 생성하기 위한 프롬프트입니다.
         """
-        # "헌법 전문가"에서 "AI 어시스턴트"로 좀 더 일반적인 역할로 변경
         qa_system_prompt = """당신은 주어진 문서를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
         제공된 검색 결과를 바탕으로 질문에 답변하세요.
 
@@ -193,56 +188,109 @@ class RAGChain:
 # 메인 애플리케이션
 # ====================================
 
-@st.cache_resource
-
+@st.cache_resource # 전체 RAG 시스템 초기화를 캐싱합니다.
 # NLTK 데이터 다운로드 함수
 def download_nltk_data():
     st.info("NLTK 데이터를 확인하고 다운로드합니다...")
 
     # NLTK 데이터가 저장될 경로를 명시적으로 지정합니다.
-    # Streamlit Cloud 환경에서 쓰기 가능한 경로여야 합니다.
-    # 일반적으로 앱의 작업 디렉토리 내에 폴더를 만드는 것이 안전합니다.
     nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
     if not os.path.exists(nltk_data_path):
         os.makedirs(nltk_data_path)
-    # NLTK가 데이터를 찾을 경로 목록에 추가합니다.
     nltk.data.path.append(nltk_data_path)
 
-    # 다운로드할 NLTK 데이터셋 목록
     datasets = ['punkt', 'averaged_perceptron_tagger']
 
     for dataset in datasets:
         try:
-            # 데이터가 이미 있는지 확인합니다.
             if dataset == 'punkt':
                 nltk.data.find(f'tokenizers/{dataset}')
-            else: # averaged_perceptron_tagger 같은 태거는 taggers 폴더에 있습니다.
+            else: 
                 nltk.data.find(f'taggers/{dataset}')
             st.success(f"✅ NLTK '{dataset}' 데이터 확인 완료!")
-        except LookupError: # NLTK 데이터가 없을 때 nltk.data.find()가 발생시키는 일반적인 예외
+        except LookupError: 
             st.warning(f"NLTK '{dataset}' 데이터가 없습니다. 다운로드합니다...")
             try:
-                # 데이터를 지정된 경로에 다운로드합니다. (quiet=True로 불필요한 출력 제거)
                 nltk.download(dataset, quiet=True, download_dir=nltk_data_path)
                 st.success(f"✅ NLTK '{dataset}' 데이터 다운로드 성공!")
-            except Exception as e_download: # 다운로드 중 발생할 수 있는 모든 오류를 잡습니다.
+            except Exception as e_download: 
                 st.error(f"NLTK '{dataset}' 데이터 다운로드 최종 실패: {e_download}")
-                st.stop() # 필수 데이터이므로 실패 시 앱을 중지합니다.
-        except Exception as e_other: # LookupError 외의 다른 예상치 못한 오류를 잡습니다.
+                st.stop()
+        except Exception as e_other: 
             st.error(f"NLTK '{dataset}' 데이터 확인 중 예상치 못한 오류 발생: {e_other}")
-            st.stop() # 필수 데이터이므로 실패 시 앱을 중지합니다.
+            st.stop()
 
+# @st.cache_resource # 이 캐시는 initialize_rag_system으로 옮겨졌습니다.
 def initialize_rag_system(model_name):
-    """RAG 시스템 초기화"""
+    """RAG 시스템 초기화 (개별 문서 처리 방식)"""
     st.info("🔄 RAG 시스템 초기화 중...")
-    documents = DocumentProcessor.load_documents("data")
-    split_docs = DocumentProcessor.split_text(documents)
-    vectorstore = DocumentProcessor.create_vector_store(split_docs)
+    
+    data_path = "./data" # 문서 폴더 경로
+    vectorstore = None # 초기 벡터 저장소는 None으로 설정
+    
+    # 임베딩 모델은 initialize_rag_system에서 한 번만 생성합니다.
+    embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
+
+    st.info("📂 문서 폴더에서 파일을 찾고 있습니다...")
+
+    # data/ 폴더 안의 각 파일을 개별적으로 처리
+    processed_any_document = False
+    for filename in os.listdir(data_path):
+        filepath = os.path.join(data_path, filename)
+        
+        if os.path.isfile(filepath): # 파일인 경우에만 처리
+            st.info(f"📄 파일 로드 시작: {filename}")
+            try:
+                # 1. 파일 확장자에 따라 적절한 로더 사용
+                if filename.lower().endswith(".pdf"):
+                    loader = PyPDFLoader(filepath)
+                elif filename.lower().endswith(".docx"):
+                    loader = Docx2txtLoader(filepath)
+                elif filename.lower().endswith(".pptx"):
+                    loader = PPTXLoader(filepath)
+                elif filename.lower().endswith(".txt"):
+                    loader = TextLoader(filepath)
+                else:
+                    st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.")
+                    continue 
+
+                # 2. 하나의 문서 로드 (load()는 Document 객체의 리스트를 반환)
+                single_document_list = loader.load() 
+                
+                if not single_document_list:
+                    st.warning(f"파일 {filename}에서 문서를 로드하지 못했습니다. 건너킵니다.")
+                    continue
+
+                # 3. 이 문서의 청크만 분할
+                split_single_doc_chunks = DocumentProcessor.split_text(single_document_list)
+                
+                # 4. 벡터 저장소에 추가 (첫 문서라면 생성, 아니면 추가)
+                if vectorstore is None:
+                    # 첫 문서로 벡터 저장소 생성
+                    vectorstore = DocumentProcessor.create_vector_store(split_single_doc_chunks, embeddings)
+                else:
+                    # 기존 벡터 저장소에 추가
+                    vectorstore = DocumentProcessor.add_documents_to_vector_store(vectorstore, split_single_doc_chunks, embeddings)
+                
+                processed_any_document = True
+
+            except Exception as e:
+                st.error(f"❌ 파일 {filename} 처리 중 오류 발생: {e}")
+                continue # 오류가 나더라도 다음 파일 처리는 계속 진행
+
+    if not processed_any_document or vectorstore is None:
+        st.error("❌ 'data' 폴더에 처리할 문서가 없거나 모든 문서 처리 중 오류가 발생하여 벡터 DB를 생성하지 못했습니다.")
+        st.stop() # 벡터 DB 없으면 앱 실행 불가
+
+    st.success("✅ 모든 문서 처리 및 벡터 DB 생성 완료!")
+    
+    # 벡터 저장소가 성공적으로 생성된 경우 RAG 체인 구성
     rag_retriever = RAGRetriever(vectorstore)
     retriever = rag_retriever.get_retriever()
     llm_manager = LLMManager(model_name)
     llm = llm_manager.get_llm()
     rag_chain = RAGChain(retriever, llm)
+    
     st.success("✅ RAG 시스템 초기화 완료!")
     return rag_chain
 
@@ -288,9 +336,9 @@ def main():
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
         **Pre-processing:**
-        1. 📄 문서 로드
-        2. ✂️ 텍스트 분할
-        3. 💾 벡터 DB 저장
+        1. 📄 문서 로드 (개별 파일 처리)
+        2. ✂️ 텍스트 분할 (매우 작은 청크)
+        3. 💾 벡터 DB 저장/추가 (각 문서 청크별)
 
         **Runtime:**
         1. 🔍 유사도 검색
@@ -299,9 +347,16 @@ def main():
         4. 📋 결과 출력
         """)
 
+    # initialize_rag_system은 이제 @st.cache_resource에 의해 캐싱됩니다.
     rag_chain = initialize_rag_system(model_option)
+    
+    # rag_chain이 None인 경우 앱 중지 (initialize_rag_system에서 st.stop() 처리)
+    if rag_chain is None:
+        return
+
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
     conversational_rag_chain = rag_chain.get_conversational_chain(chat_history)
+    
 
     # 초기 메시지를 일반적인 내용으로 변경
     if not chat_history.messages:
