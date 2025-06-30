@@ -1,5 +1,7 @@
 tesseract-ocr
-tesseract-ocr-eng  
-tesseract-ocr-kor  
-libtesseract-dev   
-libleptonica-dev   
+tesseract-ocr-eng
+tesseract-ocr-kor
+libtesseract-dev
+libleptonica-dev
+unzip
+wget
