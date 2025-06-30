@@ -7,11 +7,11 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 # 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader 포함
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader 
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader
 # RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-import nltk 
+import nltk # NLTK 데이터 다운로드를 위해 필요합니다.
 
 
 # OpenAI API Key 설정
@@ -25,6 +25,8 @@ os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 class DocumentProcessor:
     """문서 전처리를 담당하는 클래스"""
 
+    # 이 load_documents 함수는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체되므로,
+    # 여기서는 사용되지 않습니다.
     @staticmethod
     @st.cache_resource
     def load_documents(directory_path: str):
@@ -32,11 +34,11 @@ class DocumentProcessor:
         1. 문서 로드 (Document Load)
         (이 함수는 이제 직접적으로 사용되지 않습니다. 개별 파일 로딩 로직으로 대체됩니다.)
         """
-        # st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
+        st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
         return []
 
     @staticmethod
-    def split_text(documents, chunk_size=150, chunk_overlap=30): 
+    def split_text(documents, chunk_size=150, chunk_overlap=30): # chunk_size를 150으로 조정했습니다
         """
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
@@ -63,16 +65,17 @@ class DocumentProcessor:
         return vectorstore
     
     @staticmethod
-    def add_documents_to_vector_store(vectorstore, split_docs, embeddings): 
+    def add_documents_to_vector_store(vectorstore, split_docs, embeddings): # embeddings 인자를 받아도 됩니다.
         """
         기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
         """
+        # ★★★ vectorstore.add_documents 호출 시 embeddings 인자를 제거합니다! ★★★
         vectorstore.add_documents(split_docs) 
         # st.success("💾 벡터 DB에 문서 청크 추가 완료!")
         return vectorstore
 
 # ====================================
-# RUNTIME 단계
+# RUNTIME 단계 (이전과 동일)
 # ====================================
 
 class RAGRetriever:
@@ -134,36 +137,6 @@ class PromptManager:
             MessagesPlaceholder("history"),
             ("human", "{input}"),
         ])
-    
-    @staticmethod
-    def get_general_qa_prompt():
-        """
-        문서 검색 없이 일반적인 질문에 답변하기 위한 프롬프트입니다.
-        """
-        general_system_prompt = """당신은 유용한 AI 어시스턴트입니다. 사용자의 질문에 간결하고 정확하게 답변하세요.
-        어떤 상황에서도 문서 검색을 시도하지 말고, 오직 당신의 일반 지식으로만 답변하세요."""
-        return ChatPromptTemplate.from_messages([
-            ("system", general_system_prompt),
-            MessagesPlaceholder("history"), 
-            ("human", "{input}"),
-        ])
-
-    @staticmethod
-    def get_intent_detection_prompt(): #  새로운 의도 감지 프롬프트 
-        """
-        사용자 질문의 의도를 감지하기 위한 프롬프트입니다.
-        """
-        intent_system_prompt = """당신은 질문 분류 전문가입니다. 사용자의 질문이 다음 두 가지 중 어디에 해당하는지 분류하세요:
-        - DOCUMENTS: 질문이 업로드된 문서의 내용과 관련된 것 같습니다. (정보 검색 필요)
-        - GENERAL: 질문이 일반적인 지식에 관한 것이고, 문서 검색이 필요하지 않습니다.
-
-        오직 'DOCUMENTS' 또는 'GENERAL' 중 하나로만 답변하세요. 다른 설명은 필요 없습니다.
-        """
-        return ChatPromptTemplate.from_messages([
-            ("system", intent_system_prompt),
-            ("human", "질문: {question}"),
-        ])
-
 
 class LLMManager:
     """
@@ -208,11 +181,15 @@ class RAGChain:
         )
 
 # ====================================
-# 메인 애플리케이션
+# 메인 애플리케이션 (수정된 부분 포함)
 # ====================================
 
-@st.cache_resource 
+@st.cache_resource # 전체 RAG 시스템 초기화를 캐싱합니다.
+# NLTK 데이터 다운로드 함수
 def download_nltk_data():
+    # st.info("NLTK 데이터를 확인하고 다운로드합니다...")
+
+    # NLTK 데이터가 저장될 경로를 명시적으로 지정합니다.
     nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
     if not os.path.exists(nltk_data_path):
         os.makedirs(nltk_data_path)
@@ -226,36 +203,40 @@ def download_nltk_data():
                 nltk.data.find(f'tokenizers/{dataset}')
             else: 
                 nltk.data.find(f'taggers/{dataset}')
+            # st.success(f"✅ NLTK '{dataset}' 데이터 확인 완료!")
         except LookupError: 
+            st.warning(f"NLTK '{dataset}' 데이터가 없습니다. 다운로드합니다...")
             try:
                 nltk.download(dataset, quiet=True, download_dir=nltk_data_path)
+                # st.success(f"✅ NLTK '{dataset}' 데이터 다운로드 성공!")
             except Exception as e_download: 
-                st.error(f"NLTK '{dataset}' 데이터 다운로드 최종 실패: {e_download}") 
-                return None 
+                st.error(f"NLTK '{dataset}' 데이터 다운로드 최종 실패: {e_download}")
+                st.stop()
         except Exception as e_other: 
-            st.error(f"NLTK '{dataset}' 데이터 확인 중 예상치 못한 오류 발생: {e_other}") 
-            return None 
-    return True 
+            st.error(f"NLTK '{dataset}' 데이터 확인 중 예상치 못한 오류 발생: {e_other}")
+            st.stop()
 
-
+# initialize_rag_system 함수: 개별 문서 처리 방식
 def initialize_rag_system(model_name):
     """RAG 시스템 초기화 (개별 문서 처리 방식)"""
-    # st.info("🔄 RAG 시스템 초기화 중...") 
+    # st.info("🔄 RAG 시스템 초기화 중...")
     
     data_path = "./data" # 문서 폴더 경로
     vectorstore = None # 초기 벡터 저장소는 None으로 설정
     
+    # 임베딩 모델은 initialize_rag_system에서 한 번만 생성합니다.
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
-    
-    # st.info("📂 문서 폴더에서 파일을 찾고 있습니다...") 
+
+    # st.info("📂 문서 폴더에서 파일을 찾고 있습니다...")
 
     processed_any_document = False
     for filename in os.listdir(data_path):
         filepath = os.path.join(data_path, filename)
         
-        if os.path.isfile(filepath): 
-            # st.info(f"📄 파일 로드 시작: {filename}") 
+        if os.path.isfile(filepath): # 파일인 경우에만 처리
+            # st.info(f"📄 파일 로드 시작: {filename}")
             try:
+                # 1. 파일 확장자에 따라 적절한 로더 사용
                 if filename.lower().endswith(".pdf"):
                     loader = PyPDFLoader(filepath)
                 elif filename.lower().endswith(".docx"):
@@ -264,57 +245,56 @@ def initialize_rag_system(model_name):
                     loader = UnstructuredPowerPointLoader(filepath) 
                 elif filename.lower().endswith(".txt"):
                     loader = TextLoader(filepath)
-                # elif filename.lower().endswith(".csv"): # CSV 파일 처리가 필요하다면 이 주석을 해제하고 CSVLoader를 임포트 및 requirements.txt에 pandas 추가
-                #     loader = CSVLoader(filepath)
+                elif filename.lower().endswith(".csv"):
+                    loader = CSVLoader(filepath)
                 else:
-                    # st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.") 
+                    # st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.")
                     continue 
 
+                # 2. 하나의 문서 로드 (load()는 Document 객체의 리스트를 반환)
                 single_document_list = loader.load() 
                 
                 if not single_document_list:
-                    # st.warning(f"파일 {filename}에서 문서를 로드하지 못했습니다. 건너킵니다.") 
+                    # st.warning(f"파일 {filename}에서 문서를 로드하지 못했습니다. 건너킵니다.")
                     continue
 
+                # 3. 이 문서의 청크만 분할
                 split_single_doc_chunks = DocumentProcessor.split_text(single_document_list)
                 
+                # 4. 벡터 저장소에 추가 (첫 문서라면 생성, 아니면 추가)
                 if vectorstore is None:
+                    # 첫 문서로 벡터 저장소 생성
                     vectorstore = DocumentProcessor.create_vector_store(split_single_doc_chunks, embeddings)
                 else:
+                    # 기존 벡터 저장소에 추가
                     vectorstore = DocumentProcessor.add_documents_to_vector_store(vectorstore, split_single_doc_chunks, embeddings)
                 
                 processed_any_document = True
 
             except Exception as e:
-                st.error(f"❌ 파일 {filename} 처리 중 오류 발생: {e}") 
-                continue 
+                st.error(f"❌ 파일 {filename} 처리 중 오류 발생: {e}")
+                continue # 오류가 나더라도 다음 파일 처리는 계속 진행
 
     if not processed_any_document or vectorstore is None:
-        st.error("❌ 'data' 폴더에 처리할 문서가 없거나 모든 문서 처리 중 오류가 발생하여 벡터 DB를 생성하지 못했습니다.") 
-        return None 
+        st.error("❌ 'data' 폴더에 처리할 문서가 없거나 모든 문서 처리 중 오류가 발생하여 벡터 DB를 생성하지 못했습니다.")
+        st.stop() # 벡터 DB 없으면 앱 실행 불가
 
-    # st.success("✅ 모든 문서 처리 및 벡터 DB 생성 완료!") 
+    # st.success("✅ 모든 문서 처리 및 벡터 DB 생성 완료!")
     
     # 벡터 저장소가 성공적으로 생성된 경우 RAG 체인 구성
     rag_retriever = RAGRetriever(vectorstore)
     retriever = rag_retriever.get_retriever()
     llm_manager = LLMManager(model_name)
     llm = llm_manager.get_llm()
-    rag_chain = RAGChain(retriever, llm) # RAG 체인
+    rag_chain = RAGChain(retriever, llm)
     
-    # st.success("✅ RAG 시스템 초기화 완료!") 
-    return rag_chain, llm # rag_chain과 LLM 인스턴스를 함께 반환 (일반 질문 체인에 사용)
-
+    # st.success("✅ RAG 시스템 초기화 완료!")
+    return rag_chain
 
 def format_output(response):
     """결과 포맷팅"""
-    if isinstance(response, dict):
-        answer = response.get('answer', '답변을 생성할 수 없습니다.')
-        context = response.get('context', [])
-    else: 
-        answer = response # LLM이 직접 문자열을 반환하는 경우
-        context = []
-
+    answer = response.get('answer', '답변을 생성할 수 없습니다.')
+    context = response.get('context', [])
     return {
         'answer': answer,
         'context': context,
@@ -322,16 +302,15 @@ def format_output(response):
     }
 
 # ====================================
-# Streamlit UI
+# Streamlit UI (이전과 동일)
 # ====================================
 
 def main():
 
     # NLTK 데이터 다운로드
-    nltk_download_status = download_nltk_data()
-    if nltk_download_status is None: 
-        return
+    download_nltk_data()
 
+    # 페이지 제목과 아이콘을 좀 더 일반적인 내용으로 변경
     st.set_page_config(
         page_title="RAG 문서 Q&A 챗봇",
         page_icon="🤖",
@@ -339,7 +318,7 @@ def main():
     )
 
     st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
-    st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
+    # st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
 
     with st.sidebar:
         st.header("🔧 설정")
@@ -349,9 +328,8 @@ def main():
             help="사용할 GPT 모델을 선택하세요"
         )
         st.markdown("---")
-        # is_general_question_mode 체크박스 제거
-        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
-        st.markdown("---")
+        # st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        # st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
         **Pre-processing:**
@@ -359,48 +337,23 @@ def main():
         2. ✂️ 텍스트 분할 (매우 작은 청크)
         3. 💾 벡터 DB 저장/추가 (각 문서 청크별)
 
-        **Runtime (자동 라우팅):**
-        1. 🤔 질문 의도 감지 (문서 관련 vs 일반 지식)
-        2. 🔍 유사도 검색 (필요시)
-        3. 📝 프롬프트 구성
-        4. 🤖 LLM 추론
-        5. 📋 결과 출력
+        **Runtime:**
+        1. 🔍 유사도 검색
+        2. 📝 프롬프트 구성
+        3. 🤖 LLM 추론
+        4. 📋 결과 출력
         """)
 
-    # initialize_rag_system은 이제 rag_chain과 llm(general_llm)을 함께 반환합니다.
-    rag_chain_wrapper, llm_for_general_qa = initialize_rag_system(model_option) # 이름 변경
+    # initialize_rag_system은 이제 @st.cache_resource에 의해 캐싱됩니다.
+    rag_chain = initialize_rag_system(model_option)
     
-    if rag_chain_wrapper is None: # RAG 시스템 초기화 실패 시 앱 중단
+    # rag_chain이 None인 경우 앱 중지 (initialize_rag_system에서 st.stop() 처리)
+    if rag_chain is None:
         return
 
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
-    conversational_rag_chain = rag_chain_wrapper.get_conversational_chain(chat_history)
+    conversational_rag_chain = rag_chain.get_conversational_chain(chat_history)
     
-    # --- 일반 질문 모드용 LLM 체인 생성 ---
-    prompt_manager = PromptManager() 
-    general_llm_chain_template = prompt_manager.get_general_qa_prompt() 
-    
-    general_qa_chain_raw = create_stuff_documents_chain(llm_for_general_qa, general_llm_chain_template) 
-    general_conversational_chain = RunnableWithMessageHistory(
-        general_qa_chain_raw, 
-        lambda session_id: chat_history, 
-        input_messages_key="input",
-        history_messages_key="history",
-        output_messages_key="answer", 
-    )
-    # --- 의도 감지 체인 생성 ---
-    intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
-    # 이 체인은 대화 히스토리 없이 사용자의 질문만 받도록 간단하게 구성
-    intent_detection_chain = ChatOpenAI(model=model_option, temperature=0).bind(
-        response_format={"type": "text"} # 텍스트 형식으로 응답 받도록 강제
-    ).with_structured_output(
-        schema={"type": "string", "enum": ["DOCUMENTS", "GENERAL"]} # 응답을 특정 문자열로 제한
-    ) # 의도 감지 체인 생성 시 형식 지정
-    
-    # 의도 감지 체인을 RunnableWithMessageHistory로 래핑하여 채팅 히스토리도 사용 가능하게 함 (선택 사항)
-    # 그러나 의도 감지는 보통 질문 자체에 집중하므로 간단한 체인으로도 충분.
-    # 여기서는 간단하게 만들고, 호출 시 chat_history는 무시.
-
 
     # 초기 메시지를 일반적인 내용으로 변경
     if not chat_history.messages:
@@ -413,80 +366,38 @@ def main():
         st.chat_message("human").write(prompt)
 
         with st.chat_message("ai"):
-            with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
+            with st.spinner("🧐 문서를 검색하고 답변을 생성 중입니다..."):
                 try:
-                    # 1. 질문 의도 감지
-                    # 의도 감지 시에는 채팅 히스토리 없이 현재 질문만 보내는 것이 더 명확할 수 있습니다.
-                    intent_response = intent_detection_chain.invoke(
-                        {"question": prompt}
-                    )
+                    config = {"configurable": {"session_id": "rag_chat"}}
+                    response = conversational_rag_chain.invoke({"input": prompt}, config)
                     
-                    # LLM의 응답이 dict 형태라면 'text' 키를, 아니면 직접 문자열을 사용
-                    # structured_output을 사용했으므로 바로 문자열이 올 것으로 예상
-                    intent = intent_response # 바로 'DOCUMENTS' 또는 'GENERAL' 문자열
+                    formatted_response = format_output(response)
+                    st.write(formatted_response['answer'])
 
-                    if intent.strip().upper() == "GENERAL": # LLM이 반환한 의도에 따라 분기
-                        st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
-                        config = {"configurable": {"session_id": "general_chat"}}
-                        response = general_conversational_chain.invoke({"input": prompt}, config)
-                        st.write(response['answer']) # response는 dict 형태일 것임 (answer 키 포함)
-                        # 일반 질문 모드이므로 참고 문서는 표시하지 않음
+                    with st.expander(f"📄 참고 문서 ({formatted_response['source_count']}개)"):
+                        if formatted_response['context']:
+                            for i, doc in enumerate(formatted_response['context']):
+                                st.markdown(f"**📖 문서 {i+1}**")
+                                source = doc.metadata.get('source', '출처 정보 없음')
+                                st.markdown(f"**출처:** `{source}`")
+                                
+                                # 페이지 번호는 PDF 파일에만 존재할 수 있음
+                                if 'page' in doc.metadata:
+                                    page = doc.metadata.get('page')
+                                    st.markdown(f"**페이지:** {page + 1}")
 
-                    elif intent.strip().upper() == "DOCUMENTS":
-                        st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
-                        config = {"configurable": {"session_id": "rag_chat"}}
-                        response = conversational_rag_chain.invoke({"input": prompt}, config)
-                        formatted_response = format_output(response)
-                        st.write(formatted_response['answer'])
-
-                        with st.expander(f"📄 참고 문서 ({formatted_response['source_count']}개)"):
-                            if formatted_response['context']:
-                                for i, doc in enumerate(formatted_response['context']):
-                                    st.markdown(f"**📖 문서 {i+1}**")
-                                    source = doc.metadata.get('source', '출처 정보 없음')
-                                    st.markdown(f"**출처:** `{source}`")
-                                    if 'page' in doc.metadata:
-                                        page = doc.metadata.get('page')
-                                        st.markdown(f"**페이지:** {page + 1}")
-                                    st.text_area(
-                                        f"문서 {i+1} 내용",
-                                        doc.page_content,
-                                        height=150,
-                                        key=f"doc_{i}",
-                                        label_visibility="collapsed"
-                                    )
-                                    if i < len(formatted_response['context']) - 1:
-                                        st.markdown("---")
-                            else:
-                                st.info("답변에 참고한 문서를 찾을 수 없습니다.")
-                    else:
-                        st.warning(f"의도 파악에 실패했습니다. (응답: {intent}). 기본적으로 RAG 모드로 진행합니다.")
-                        config = {"configurable": {"session_id": "rag_chat"}}
-                        response = conversational_rag_chain.invoke({"input": prompt}, config)
-                        formatted_response = format_output(response)
-                        st.write(formatted_response['answer'])
-
-                        with st.expander(f"📄 참고 문서 ({formatted_response['source_count']}개)"):
-                            if formatted_response['context']:
-                                for i, doc in enumerate(formatted_response['context']):
-                                    st.markdown(f"**📖 문서 {i+1}**")
-                                    source = doc.metadata.get('source', '출처 정보 없음')
-                                    st.markdown(f"**출처:** `{source}`")
-                                    if 'page' in doc.metadata:
-                                        page = doc.metadata.get('page')
-                                        st.markdown(f"**페이지:** {page + 1}")
-                                    st.text_area(
-                                        f"문서 {i+1} 내용",
-                                        doc.page_content,
-                                        height=150,
-                                        key=f"doc_{i}",
-                                        label_visibility="collapsed"
-                                    )
-                                    if i < len(formatted_response['context']) - 1:
-                                        st.markdown("---")
-                            else:
-                                st.info("답변에 참고한 문서를 찾을 수 없습니다.")
-
+                                st.text_area(
+                                    f"문서 {i+1} 내용",
+                                    doc.page_content,
+                                    height=150,
+                                    key=f"doc_{i}",
+                                    label_visibility="collapsed"
+                                )
+                                if i < len(formatted_response['context']) - 1:
+                                    st.markdown("---")
+                        else:
+                            st.info("답변에 참고한 문서를 찾을 수 없습니다.")
+                
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
                     st.info("다시 시도해주세요.")
