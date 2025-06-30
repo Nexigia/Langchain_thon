@@ -5,7 +5,7 @@ langchain-openai
 langchain-core
 faiss-cpu
 pypdf
-unstructured
+unstructured[pdf]
 python-docx
 tiktoken
 python-pptx
