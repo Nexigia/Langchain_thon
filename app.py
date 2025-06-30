@@ -205,7 +205,7 @@ def download_nltk_data():
                 nltk.data.find(f'taggers/{dataset}')
             # st.success(f"✅ NLTK '{dataset}' 데이터 확인 완료!")
         except LookupError: 
-            st.warning(f"NLTK '{dataset}' 데이터가 없습니다. 다운로드합니다...")
+            # st.warning(f"NLTK '{dataset}' 데이터가 없습니다. 다운로드합니다...")
             try:
                 nltk.download(dataset, quiet=True, download_dir=nltk_data_path)
                 # st.success(f"✅ NLTK '{dataset}' 데이터 다운로드 성공!")
