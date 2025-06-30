@@ -7,7 +7,7 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 # 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader 포함
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader 
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader
 # RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -245,6 +245,8 @@ def initialize_rag_system(model_name):
                     loader = UnstructuredPowerPointLoader(filepath) 
                 elif filename.lower().endswith(".txt"):
                     loader = TextLoader(filepath)
+                elif filename.lower().endswith(".csv"):
+                    loader = CSVLoader(filepath)
                 else:
                     st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.")
                     continue 
