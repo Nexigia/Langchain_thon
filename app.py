@@ -50,7 +50,7 @@ class DocumentProcessor:
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
         )
         split_docs = text_splitter.split_documents(documents)
-        st.info(f"✂️ 텍스트 분할 완료: {len(split_docs)} 청크")
+        # st.info(f"✂️ 텍스트 분할 완료: {len(split_docs)} 청크")
         return split_docs
 
     @staticmethod
@@ -61,7 +61,7 @@ class DocumentProcessor:
         - 변환된 벡터를 FAISS DB에 저장합니다.
         """
         vectorstore = FAISS.from_documents(_split_docs, embeddings)
-        st.success("💾 벡터 DB 생성 완료!")
+        # st.success("💾 벡터 DB 생성 완료!")
         return vectorstore
     
     @staticmethod
@@ -70,8 +70,8 @@ class DocumentProcessor:
         기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
         """
         # ★★★ vectorstore.add_documents 호출 시 embeddings 인자를 제거합니다! ★★★
-        vectorstore.add_documents(split_docs) # <- 이 줄을 이렇게 수정!
-        st.success("💾 벡터 DB에 문서 청크 추가 완료!")
+        vectorstore.add_documents(split_docs) 
+        # st.success("💾 벡터 DB에 문서 청크 추가 완료!")
         return vectorstore
 
 # ====================================
@@ -187,7 +187,7 @@ class RAGChain:
 @st.cache_resource # 전체 RAG 시스템 초기화를 캐싱합니다.
 # NLTK 데이터 다운로드 함수
 def download_nltk_data():
-    st.info("NLTK 데이터를 확인하고 다운로드합니다...")
+    # st.info("NLTK 데이터를 확인하고 다운로드합니다...")
 
     # NLTK 데이터가 저장될 경로를 명시적으로 지정합니다.
     nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
@@ -203,12 +203,12 @@ def download_nltk_data():
                 nltk.data.find(f'tokenizers/{dataset}')
             else: 
                 nltk.data.find(f'taggers/{dataset}')
-            st.success(f"✅ NLTK '{dataset}' 데이터 확인 완료!")
+            # st.success(f"✅ NLTK '{dataset}' 데이터 확인 완료!")
         except LookupError: 
             st.warning(f"NLTK '{dataset}' 데이터가 없습니다. 다운로드합니다...")
             try:
                 nltk.download(dataset, quiet=True, download_dir=nltk_data_path)
-                st.success(f"✅ NLTK '{dataset}' 데이터 다운로드 성공!")
+                # st.success(f"✅ NLTK '{dataset}' 데이터 다운로드 성공!")
             except Exception as e_download: 
                 st.error(f"NLTK '{dataset}' 데이터 다운로드 최종 실패: {e_download}")
                 st.stop()
@@ -219,7 +219,7 @@ def download_nltk_data():
 # initialize_rag_system 함수: 개별 문서 처리 방식
 def initialize_rag_system(model_name):
     """RAG 시스템 초기화 (개별 문서 처리 방식)"""
-    st.info("🔄 RAG 시스템 초기화 중...")
+    # st.info("🔄 RAG 시스템 초기화 중...")
     
     data_path = "./data" # 문서 폴더 경로
     vectorstore = None # 초기 벡터 저장소는 None으로 설정
@@ -227,14 +227,14 @@ def initialize_rag_system(model_name):
     # 임베딩 모델은 initialize_rag_system에서 한 번만 생성합니다.
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
 
-    st.info("📂 문서 폴더에서 파일을 찾고 있습니다...")
+    # st.info("📂 문서 폴더에서 파일을 찾고 있습니다...")
 
     processed_any_document = False
     for filename in os.listdir(data_path):
         filepath = os.path.join(data_path, filename)
         
         if os.path.isfile(filepath): # 파일인 경우에만 처리
-            st.info(f"📄 파일 로드 시작: {filename}")
+            # st.info(f"📄 파일 로드 시작: {filename}")
             try:
                 # 1. 파일 확장자에 따라 적절한 로더 사용
                 if filename.lower().endswith(".pdf"):
@@ -248,14 +248,14 @@ def initialize_rag_system(model_name):
                 elif filename.lower().endswith(".csv"):
                     loader = CSVLoader(filepath)
                 else:
-                    st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.")
+                    # st.warning(f"지원하지 않는 파일 형식입니다: {filename}. 건너킵니다.")
                     continue 
 
                 # 2. 하나의 문서 로드 (load()는 Document 객체의 리스트를 반환)
                 single_document_list = loader.load() 
                 
                 if not single_document_list:
-                    st.warning(f"파일 {filename}에서 문서를 로드하지 못했습니다. 건너킵니다.")
+                    # st.warning(f"파일 {filename}에서 문서를 로드하지 못했습니다. 건너킵니다.")
                     continue
 
                 # 3. 이 문서의 청크만 분할
@@ -279,7 +279,7 @@ def initialize_rag_system(model_name):
         st.error("❌ 'data' 폴더에 처리할 문서가 없거나 모든 문서 처리 중 오류가 발생하여 벡터 DB를 생성하지 못했습니다.")
         st.stop() # 벡터 DB 없으면 앱 실행 불가
 
-    st.success("✅ 모든 문서 처리 및 벡터 DB 생성 완료!")
+    # st.success("✅ 모든 문서 처리 및 벡터 DB 생성 완료!")
     
     # 벡터 저장소가 성공적으로 생성된 경우 RAG 체인 구성
     rag_retriever = RAGRetriever(vectorstore)
@@ -288,7 +288,7 @@ def initialize_rag_system(model_name):
     llm = llm_manager.get_llm()
     rag_chain = RAGChain(retriever, llm)
     
-    st.success("✅ RAG 시스템 초기화 완료!")
+    # st.success("✅ RAG 시스템 초기화 완료!")
     return rag_chain
 
 def format_output(response):
