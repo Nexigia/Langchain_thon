@@ -8,7 +8,5 @@ pypdf
 unstructured
 python-docx
 tiktoken
-poppler-utils
 python-pptx
 Pillow
-unstructured
