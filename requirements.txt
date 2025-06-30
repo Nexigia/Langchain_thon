@@ -9,6 +9,6 @@ unstructured
 python-docx
 tiktoken
 poppler-utils
-python-docx 
+python-pptx
 Pillow
 unstructured
