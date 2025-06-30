@@ -237,22 +237,6 @@ def main():
             ("gpt-4o-mini", "gpt-3.5-turbo-0125", "gpt-4o"),
             help="사용할 GPT 모델을 선택하세요"
         )
-        st.markdown("---")
-        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
-        st.markdown("---")
-        st.markdown("### 📊 RAG 프로세스")
-        st.markdown("""
-        **Pre-processing:**
-        1. 📄 문서 로드
-        2. ✂️ 텍스트 분할
-        3. 💾 벡터 DB 저장
-
-        **Runtime:**
-        1. 🔍 유사도 검색
-        2. 📝 프롬프트 구성
-        3. 🤖 LLM 추론
-        4. 📋 결과 출력
-        """)
 
     rag_chain = initialize_rag_system(model_option)
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
