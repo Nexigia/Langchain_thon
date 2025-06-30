@@ -15,10 +15,6 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.messages import AIMessage
 import nltk 
 
-# pydantic 임포트와 Intent 모델은 더 이상 사용하지 않으므로 제거합니다.
-# from pydantic import BaseModel, Field
-# from typing import Literal 
-
 # OpenAI API Key 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
