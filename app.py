@@ -36,7 +36,7 @@ class DocumentProcessor:
         # DirectoryLoader를 사용하여 다양한 파일 형식 로드
         # show_progress=True로 설정하여 로딩 진행 상황을 터미널에 표시합니다.
         # use_multithreading=True로 설정하여 여러 파일을 동시에 빠르게 로드합니다.
-        loader = DirectoryLoader(directory_path, glob="data/*.*", show_progress=True, use_multithreading=True)
+        loader = DirectoryLoader(directory_path, glob="**/*.*", show_progress=True, use_multithreading=True)
         
         st.info(f"📁 '{directory_path}' 디렉토리에서 모든 문서를 로드합니다...")
         
