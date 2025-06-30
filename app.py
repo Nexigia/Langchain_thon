@@ -6,47 +6,47 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
+# 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader 포함
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader 
+# RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-import nltk 
+import nltk # NLTK 데이터 다운로드를 위해 필요합니다.
+
 
 # OpenAI API Key 설정
 # Streamlit의 secrets에 'OPENAI_API_KEY'를 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 # ====================================
-# PRE-PROCESSING 단계
+# PRE-PROCESSING 단계 (수정된 부분 포함)
 # ====================================
 
 class DocumentProcessor:
     """문서 전처리를 담당하는 클래스"""
 
     # 이 load_documents 함수는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체되므로,
-    # 여기서는 사용되지 않습니다. (다만 코드 구조 유지를 위해 남겨둘 수 있습니다.)
+    # 여기서는 사용되지 않습니다.
     @staticmethod
     @st.cache_resource
     def load_documents(directory_path: str):
         """
         1. 문서 로드 (Document Load)
-        - 지정된 디렉토리에서 지원하는 모든 형식의 파일(.pdf, .txt, .docx 등)을 읽어들입니다.
         (이 함수는 이제 직접적으로 사용되지 않습니다. 개별 파일 로딩 로직으로 대체됩니다.)
         """
         st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
         return []
 
     @staticmethod
-    def split_text(documents, chunk_size=150, chunk_overlap=30): # ★★★ chunk_size를 매우 작게 조정합니다 (150-200 권장) ★★★
+    def split_text(documents, chunk_size=150, chunk_overlap=30): # ★★★ chunk_size를 150으로 조정했습니다 ★★★
         """
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
         - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
         """
-        # ★★★ RecursiveCharacterTextSplitter를 사용합니다! ★★★
-        text_splitter = RecursiveCharacterTextSplitter( 
+        text_splitter = RecursiveCharacterTextSplitter( # ★★★ RecursiveCharacterTextSplitter 사용 ★★★
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            # RecursiveCharacterTextSplitter에서만 사용하는 separators를 다시 추가합니다.
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
         )
         split_docs = text_splitter.split_documents(documents)
@@ -60,7 +60,6 @@ class DocumentProcessor:
         4. DB 저장 (Vector Store)
         - 변환된 벡터를 FAISS DB에 저장합니다.
         """
-        # embeddings 객체는 initialize_rag_system에서 한 번만 생성하여 넘겨줍니다.
         vectorstore = FAISS.from_documents(_split_docs, embeddings)
         st.success("💾 벡터 DB 생성 완료!")
         return vectorstore
@@ -75,7 +74,7 @@ class DocumentProcessor:
         return vectorstore
 
 # ====================================
-# RUNTIME 단계
+# RUNTIME 단계 (이전과 동일)
 # ====================================
 
 class RAGRetriever:
@@ -181,7 +180,7 @@ class RAGChain:
         )
 
 # ====================================
-# 메인 애플리케이션
+# 메인 애플리케이션 (수정된 부분 포함)
 # ====================================
 
 @st.cache_resource # 전체 RAG 시스템 초기화를 캐싱합니다.
@@ -216,7 +215,7 @@ def download_nltk_data():
             st.error(f"NLTK '{dataset}' 데이터 확인 중 예상치 못한 오류 발생: {e_other}")
             st.stop()
 
-# @st.cache_resource # 이 캐시는 initialize_rag_system으로 옮겨졌습니다.
+# initialize_rag_system 함수: 개별 문서 처리 방식
 def initialize_rag_system(model_name):
     """RAG 시스템 초기화 (개별 문서 처리 방식)"""
     st.info("🔄 RAG 시스템 초기화 중...")
@@ -229,7 +228,6 @@ def initialize_rag_system(model_name):
 
     st.info("📂 문서 폴더에서 파일을 찾고 있습니다...")
 
-    # data/ 폴더 안의 각 파일을 개별적으로 처리
     processed_any_document = False
     for filename in os.listdir(data_path):
         filepath = os.path.join(data_path, filename)
@@ -243,7 +241,7 @@ def initialize_rag_system(model_name):
                 elif filename.lower().endswith(".docx"):
                     loader = Docx2txtLoader(filepath)
                 elif filename.lower().endswith(".pptx"):
-                    loader = PPTXLoader(filepath)
+                    loader = UnstructuredPowerPointLoader(filepath) # ★★★ UnstructuredPowerPointLoader 사용 ★★★
                 elif filename.lower().endswith(".txt"):
                     loader = TextLoader(filepath)
                 else:
@@ -301,7 +299,7 @@ def format_output(response):
     }
 
 # ====================================
-# Streamlit UI
+# Streamlit UI (이전과 동일)
 # ====================================
 
 def main():
