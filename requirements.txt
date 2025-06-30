@@ -8,3 +8,5 @@ pypdf
 unstructured
 python-docx
 tiktoken
+poppler-utils
+tesseract-ocr
