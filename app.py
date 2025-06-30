@@ -13,9 +13,9 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 import nltk 
 
-# ★★★ pydantic 임포트 추가 ★★★
+# pydantic 임포트 추가
 from pydantic import BaseModel, Field
-from typing import Literal # Literal 타입 추가
+from typing import Literal 
 
 # OpenAI API Key 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
@@ -34,12 +34,7 @@ class DocumentProcessor:
         return []
 
     @staticmethod
-    def split_text(documents, chunk_size=100, chunk_overlap=20): # 사용자 제공 코드의 chunk_size=100 유지
-        """
-        2. Text Split (청크 분할)
-        - 불러온 문서를 chunk 단위로 분할합니다.
-        - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
-        """
+    def split_text(documents, chunk_size=100, chunk_overlap=20): 
         text_splitter = RecursiveCharacterTextSplitter( 
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -49,20 +44,13 @@ class DocumentProcessor:
         return split_docs
 
     @staticmethod
-    # @st.cache_resource # 이 캐시는 계속 주석 처리되어 있어야 합니다!
+    # @st.cache_resource 
     def create_vector_store(_split_docs, embeddings): 
-        """
-        4. DB 저장 (Vector Store)
-        - 변환된 벡터를 FAISS DB에 저장합니다.
-        """
         vectorstore = FAISS.from_documents(_split_docs, embeddings)
         return vectorstore
     
     @staticmethod
     def add_documents_to_vector_store(vectorstore, split_docs, embeddings): 
-        """
-        기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
-        """
         vectorstore.add_documents(split_docs) 
         return vectorstore
 
@@ -70,7 +58,7 @@ class DocumentProcessor:
 # RUNTIME 단계
 # ====================================
 
-# ★★★ 의도 분류를 위한 Pydantic 모델 정의 ★★★
+# 의도 분류를 위한 Pydantic 모델 정의
 class Intent(BaseModel):
     """사용자 질문의 의도를 분류합니다."""
     category: Literal["DOCUMENTS", "GENERAL"] = Field(
@@ -84,10 +72,6 @@ class RAGRetriever:
         self.vectorstore = vectorstore
 
     def get_retriever(self, search_type="similarity", k=5):
-        """
-        1. 검색 (Retrieve)
-        - Vector DB에서 관련 문서를 찾는 검색기를 생성합니다. (k값을 5로 조정하여 더 많은 문맥 참조)
-        """
         retriever = self.vectorstore.as_retriever(
             search_type=search_type,
             search_kwargs={"k": k}
@@ -99,10 +83,6 @@ class PromptManager:
 
     @staticmethod
     def get_contextualize_prompt():
-        """
-        2. 프롬프트 (Prompt) - 대화 맥락화
-        - 채팅 기록을 바탕으로 후속 질문을 독립적인 질문으로 재구성합니다.
-        """
         contextualize_q_system_prompt = """주어진 채팅 히스토리와 최신 사용자 질문을 바탕으로,
         채팅 히스토리 없이도 이해할 수 있는 독립적인 질문으로 재구성하세요.
         질문에 답하지 말고, 필요시 재구성하거나 그대로 반환하세요."""
@@ -115,10 +95,6 @@ class PromptManager:
 
     @staticmethod
     def get_qa_prompt():
-        """
-        2. 프롬프트 (Prompt) - 질문 답변
-        - 검색된 문맥을 바탕으로 답변을 생성하기 위한 프롬프트입니다.
-        """
         qa_system_prompt = """당신은 주어진 문서를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
         제공된 검색 결과를 바탕으로 질문에 답변하세요.
 
@@ -139,9 +115,6 @@ class PromptManager:
     
     @staticmethod
     def get_general_qa_prompt():
-        """
-        문서 검색 없이 일반적인 질문에 답변하기 위한 프롬프트입니다.
-        """
         general_system_prompt = """당신은 유용한 AI 어시스턴트입니다. 사용자의 질문에 간결하고 정확하게 답변하세요.
         어떤 상황에서도 문서 검색을 시도하지 말고, 오직 당신의 일반 지식으로만 답변하세요."""
         return ChatPromptTemplate.from_messages([
@@ -245,6 +218,7 @@ def initialize_rag_system(model_name):
     general_llm_manager = LLMManager(model_name)
     general_llm = general_llm_manager.get_llm()
 
+
     processed_any_document = False
     for filename in os.listdir(data_path):
         filepath = os.path.join(data_path, filename)
@@ -326,8 +300,8 @@ def main():
         layout="wide"
     )
 
-    st.header("🤖 RAG 기반 문서 Q&A 챗봇 �")
-    # st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
+    st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
+    st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
 
     with st.sidebar:
         st.header("🔧 설정")
@@ -336,8 +310,8 @@ def main():
             ("gpt-4o-mini", "gpt-3.5-turbo-0125", "gpt-4o"),
             help="사용할 GPT 모델을 선택하세요"
         )
-        # st.markdown("---")
-        # st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        st.markdown("---")
+        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
         st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
@@ -349,7 +323,7 @@ def main():
         **Runtime (자동 라우팅):**
         1. 🤔 질문 의도 감지 (문서 관련 vs 일반 지식)
         2. 🔍 유사도 검색 (필요시)
-        3. 📝 프롬프트 구성
+        3. � 프롬프트 구성
         4. 🤖 LLM 추론
         5. 📋 결과 출력
         """)
@@ -380,7 +354,7 @@ def main():
     
     # 프롬프트와 LLM을 연결하고, Pydantic 모델을 schema로 전달
     intent_detection_chain_pre_invoke = intent_detection_prompt | intent_detection_llm.with_structured_output(
-        schema=Intent # ★★★ Pydantic 모델 Intent를 schema로 전달 ★★★
+        schema=Intent # Pydantic 모델 Intent를 schema로 전달
     )
     # --------------------------------------------------
     
