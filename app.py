@@ -8,8 +8,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 # DirectoryLoader는 이제 initialize_rag_system에서 직접 파일 순회 로직으로 대체됩니다.
 # 개별 파일 로더들을 임포트합니다.
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader 
-from langchain_community.document_loaders.unstructured import UnstructuredPowerPointLoader
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredFileLoader
 # RecursiveCharacterTextSplitter만 사용합니다. TokenTextSplitter는 제거합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
