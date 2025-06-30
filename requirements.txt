@@ -11,4 +11,3 @@ tiktoken
 python-pptx
 Pillow
 nltk
-libgl1-mesa-glx
