@@ -5,3 +5,4 @@ libtesseract-dev
 libleptonica-dev
 unzip
 wget
+build-essential
