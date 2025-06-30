@@ -13,9 +13,9 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 import nltk 
 
-# pydantic 임포트 추가
-from pydantic import BaseModel, Field
-from typing import Literal 
+# pydantic 임포트와 Intent 모델은 더 이상 사용하지 않으므로 제거합니다.
+# from pydantic import BaseModel, Field
+# from typing import Literal 
 
 # OpenAI API Key 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
@@ -58,12 +58,12 @@ class DocumentProcessor:
 # RUNTIME 단계
 # ====================================
 
-# 의도 분류를 위한 Pydantic 모델 정의
-class Intent(BaseModel):
-    """사용자 질문의 의도를 분류합니다."""
-    category: Literal["DOCUMENTS", "GENERAL"] = Field(
-        description="질문이 문서 관련 질문인지 (DOCUMENTS) 또는 일반 지식 질문인지 (GENERAL) 분류합니다."
-    )
+# Intent Pydantic 모델 정의는 더 이상 사용하지 않으므로 제거합니다.
+# class Intent(BaseModel):
+#     """사용자 질문의 의도를 분류합니다."""
+#     category: Literal["DOCUMENTS", "GENERAL"] = Field(
+#         description="질문이 문서 관련 질문인지 (DOCUMENTS) 또는 일반 지식 질문인지 (GENERAL) 분류합니다."
+#     )
 
 class RAGRetriever:
     """검색기(Retriever) 관리 클래스"""
@@ -126,12 +126,11 @@ class PromptManager:
     @staticmethod
     def get_intent_detection_prompt(): 
         """
-        사용자 질문의 의도를 감지하기 위한 프롬프트입니다.
-        with_structured_output과 함께 사용될 것이므로, LLM에게 명확한 지시만 제공합니다.
+        사용자 질문의 의도를 감지하기 위한 프롬프트입니다. LLM이 'DOCUMENTS' 또는 'GENERAL' 텍스트를 직접 반환하도록 유도합니다.
         """
         return ChatPromptTemplate.from_messages([
-            ("system", "사용자의 질문 의도를 분류하세요. 문서 관련 질문이면 'DOCUMENTS', 일반적인 지식 질문이면 'GENERAL'."),
-            ("human", "질문: {question}"),
+            ("system", "사용자의 질문 의도를 분류하세요. 문서 관련 질문이면 'DOCUMENTS', 일반적인 지식 질문이면 'GENERAL'. 답변은 오직 'DOCUMENTS' 또는 'GENERAL' 중 하나로만 하세요."),
+            ("human", "{question}"), # '질문: ' 접두사 제거하여 더 직접적인 응답 유도
         ])
 
 
@@ -296,7 +295,7 @@ def main():
 
     st.set_page_config(
         page_title="RAG 문서 Q&A 챗봇",
-        page_icon="🤖",
+        page_icon="�",
         layout="wide"
     )
 
@@ -323,7 +322,7 @@ def main():
         **Runtime (자동 라우팅):**
         1. 🤔 질문 의도 감지 (문서 관련 vs 일반 지식)
         2. 🔍 유사도 검색 (필요시)
-        3. � 프롬프트 구성
+        3. 📝 프롬프트 구성
         4. 🤖 LLM 추론
         5. 📋 결과 출력
         """)
@@ -348,15 +347,13 @@ def main():
         output_messages_key="answer", 
     )
     
-    # --- 의도 감지 체인 생성 (Pydantic 모델 사용) ---
+    # --- 의도 감지 체인 생성 (텍스트 반환 및 파싱으로 변경) ---
     intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
-    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) 
+    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) # temperature=0으로 일관된 분류 유도
     
-    # 프롬프트와 LLM을 연결하고, Pydantic 모델을 schema로 전달
-    intent_detection_chain_pre_invoke = intent_detection_prompt | intent_detection_llm.with_structured_output(
-        schema=Intent # Pydantic 모델 Intent를 schema로 전달
-    )
-    # --------------------------------------------------
+    # 프롬프트와 LLM을 직접 연결하고, structured_output 사용 제거
+    intent_detection_chain_pre_invoke = intent_detection_prompt | intent_detection_llm
+    # --------------------------------------------------------
     
     if not chat_history.messages:
         chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
@@ -370,13 +367,15 @@ def main():
         with st.chat_message("ai"):
             with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
                 try:
-                    # 1. 질문 의도 감지
-                    intent_result_obj = intent_detection_chain_pre_invoke.invoke(
+                    # 1. 질문 의도 감지 (텍스트 응답 파싱)
+                    # invoke 시에는 dict 형태로 input을 전달해야 합니다.
+                    # LLM의 응답은 AIMessage 객체이므로 .content 속성으로 텍스트를 추출합니다.
+                    intent_response_message = intent_detection_chain_pre_invoke.invoke(
                         {"question": prompt} 
                     )
                     
-                    # Pydantic 모델의 결과는 .category 속성으로 접근
-                    intent = intent_result_obj.category.strip().upper() 
+                    # AIMessage.content에서 텍스트 추출 후 파싱
+                    intent = intent_response_message.content.strip().upper() # .content 추가
 
                     final_answer = ""
                     final_context = []
@@ -459,3 +458,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+�
