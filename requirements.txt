@@ -5,6 +5,7 @@ langchain-openai==0.1.6
 langchain-core==0.1.52
 faiss-cpu
 pypdf
+unstructured[all-docs] 
 python-docx
 tiktoken
 python-pptx
