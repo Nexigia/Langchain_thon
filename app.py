@@ -7,7 +7,7 @@ from langchain.chains import create_history_aware_retriever, create_retrieval_ch
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
 # 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader 포함
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader 
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader
 # RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -233,10 +233,12 @@ def initialize_rag_system(model_name):
                     loader = Docx2txtLoader(filepath)
                 elif filename.lower().endswith(".pptx"):
                     loader = UnstructuredPowerPointLoader(filepath) 
-                elif filename.lower().endswith(".txt"):
-                    loader = TextLoader(filepath)
-                # elif filename.lower().endswith(".csv"): # CSV 파일 처리가 필요하다면 이 주석을 해제하고 CSVLoader를 임포트 및 requirements.txt에 pandas 추가
-                #     loader = CSVLoader(filepath)
+               elif filename.lower().endswith(".txt"):
+                    loader = TextLoader(filepath, encoding="utf-8") 
+                    if st.session_state.get('debug_mode', False):
+                        st.info(f"TXT 파일 로딩 시도: {filepath} (인코딩: utf-8)")
+                elif filename.lower().endswith(".csv"): 
+                    loader = CSVLoader(filepath)
                 else:
                     continue 
 
