@@ -318,7 +318,7 @@ def main():
     )
 
     st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
-    st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
+    # st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
 
     with st.sidebar:
         st.header("🔧 설정")
@@ -328,8 +328,8 @@ def main():
             help="사용할 GPT 모델을 선택하세요"
         )
         st.markdown("---")
-        st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
-        st.markdown("---")
+        # st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
+        # st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
         st.markdown("""
         **Pre-processing:**
