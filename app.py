@@ -56,7 +56,7 @@ class DocumentProcessor:
         return documents
 
     @staticmethod
-    def split_text(documents, chunk_size=1000, chunk_overlap=200):
+    def split_text(documents, chunk_size=300, chunk_overlap=50):
         """
         2. Text Split (청크 분할)
         - 불러온 문서를 chunk 단위로 분할합니다.
@@ -71,7 +71,7 @@ class DocumentProcessor:
         return split_docs
 
     @staticmethod
-    @st.cache_resource
+    # @st.cache_resource
     def create_vector_store(_split_docs):
         """
         4. DB 저장 (Vector Store)
