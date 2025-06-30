@@ -1,5 +1,5 @@
 tesseract-ocr
-tesseract-ocr-eng  # 영어 언어 팩 (기본적으로 필요할 수 있음)
-tesseract-ocr-kor  # 한국어 언어 팩 (한국어 문서 처리 시 필요)
-libtesseract-dev   # Tesseract 개발 라이브러리 (빌드 오류 방지에 도움)
-libleptonica-dev   # Leptonica 라이브러리 (Tesseract의 이미지 처리 종속성)
+tesseract-ocr-eng  
+tesseract-ocr-kor  
+libtesseract-dev   
+libleptonica-dev   
