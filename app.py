@@ -246,7 +246,7 @@ def initialize_rag_system(model_name):
     
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
     
-    # ★★★ LLMManager 호출 시 'model_name' 인자 사용으로 수정 ★★★
+    # LLMManager 호출 시 'model_name' 인자 사용으로 수정
     general_llm_manager = LLMManager(model_name=model_name) 
     general_llm = general_llm_manager.get_llm()
 
@@ -286,8 +286,8 @@ def initialize_rag_system(model_name):
                 processed_any_document = True
 
             except Exception as e:
-                # 오류 발생 시 파일명과 함께 st.markdown으로 강조하고, st.error, st.exception 출력 후 앱 중지
-                st.markdown(f"## ❌ 오류 발생 파일: `{filename}`") # 파일명을 더 크게 강조
+                # ★★★ 오류 발생 시 파일명과 오류 메시지를 st.write로 먼저 출력 ★★★
+                st.write(f"## ❌ 오류 발생 파일: `{filename}`") # 파일명을 더 크게 강조
                 st.error(f"❌ 파일 처리 중 오류: {e}") 
                 st.exception(e) # 콘솔/상세 오류 창에 스택 트레이스 출력
                 st.stop() # 앱 실행 중지
@@ -298,7 +298,7 @@ def initialize_rag_system(model_name):
     
     rag_retriever = RAGRetriever(vectorstore)
     retriever = rag_retriever.get_retriever()
-    # ★★★ LLMManager 호출 시 'model_name' 인자 사용으로 수정 ★★★
+    # LLMManager 호출 시 'model_name' 인자 사용으로 수정
     llm_manager = LLMManager(model_name=model_name) 
     llm = llm_manager.get_llm()
     rag_chain = RAGChain(retriever, llm) # RAG 체인
@@ -422,7 +422,7 @@ def main():
     # --------------------------------------------------------
     
     if not chat_history.messages:
-        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
+        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! �")
 
     for msg in chat_history.messages:
         st.chat_message(msg.type).write(msg.content)
