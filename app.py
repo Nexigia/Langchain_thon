@@ -6,9 +6,13 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
+# 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader, UnstructuredFileLoader 포함
+# PyPDFLoader 대신 UnstructuredFileLoader를 PDF에 사용합니다.
 from langchain_community.document_loaders import Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, UnstructuredFileLoader 
+# RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter # 오타 수정: RecursiveCharacterCharacterTextSplitter -> RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+# AIMessage 임포트 추가
 from langchain_core.messages import AIMessage
 import nltk 
 
@@ -459,78 +463,78 @@ def main():
                                 st.warning(f"LLM 의도 감지 중 오류 발생: {e}. 기본적으로 RAG 모드로 진행합니다.")
                                 determined_intent = "DOCUMENTS" # LLM 의도 감지 실패 시 RAG 폴백
 
-                final_answer = ""
-                final_context = []
-                final_source_count = 0
-                used_rag_successfully = False 
+                    final_answer = ""
+                    final_context = []
+                    final_source_count = 0
+                    used_rag_successfully = False 
 
-                if determined_intent == "GENERAL": 
-                    st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
-                    config = {"configurable": {"session_id": "general_chat"}}
-                    response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
-                    final_answer = response_from_llm_formatted['answer']
-
-                elif determined_intent == "DOCUMENTS":
-                    st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
-                    config = {"configurable": {"session_id": "rag_chat"}}
-                    response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
-                    
-                    rag_answer_content = response_from_rag_formatted['answer']
-
-                    # LLM이 "문서에 관련 정보가 없습니다."를 생성하거나 컨텍스트가 없으면 폴백
-                    if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
-                        st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다.")
-                        config = {"configurable": {"session_id": "general_chat"}} 
+                    if determined_intent == "GENERAL": 
+                        st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
+                        config = {"configurable": {"session_id": "general_chat"}}
                         response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
                         final_answer = response_from_llm_formatted['answer']
-                    else:
-                        final_answer = response_from_rag_formatted['answer']
-                        final_context = response_from_rag_formatted['context']
-                        final_source_count = response_from_rag_formatted['source_count']
-                        used_rag_successfully = True 
 
-                else: # 의도 파악 실패 시 (LLM이 'DOCUMENTS' 또는 'GENERAL' 외의 것을 반환한 경우) 기본 RAG 모드로 진행
-                    st.warning(f"의도 파악에 실패했습니다. (응답: {determined_intent}). 기본적으로 RAG 모드로 진행합니다.")
-                    config = {"configurable": {"session_id": "rag_chat"}}
-                    response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
-                    
-                    rag_answer_content = response_from_rag_formatted['answer']
-                    if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
-                        st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다. (의도 파악 실패 후)")
-                        config = {"configurable": {"session_id": "general_chat"}} 
-                        response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
-                        final_answer = response_from_llm_formatted['answer']
-                    else:
-                        final_answer = response_from_rag_formatted['answer']
-                        final_context = response_from_rag_formatted['context']
-                        final_source_count = response_from_rag_formatted['source_count']
-                        used_rag_successfully = True
+                    elif determined_intent == "DOCUMENTS":
+                        st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
+                        config = {"configurable": {"session_id": "rag_chat"}}
+                        response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
+                        
+                        rag_answer_content = response_from_rag_formatted['answer']
 
-                st.write(final_answer)
+                        # LLM이 "문서에 관련 정보가 없습니다."를 생성하거나 컨텍스트가 없으면 폴백
+                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
+                            st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다.")
+                            config = {"configurable": {"session_id": "general_chat"}} 
+                            response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                            final_answer = response_from_llm_formatted['answer']
+                        else:
+                            final_answer = response_from_rag_formatted['answer']
+                            final_context = response_from_rag_formatted['context']
+                            final_source_count = response_from_rag_formatted['source_count']
+                            used_rag_successfully = True 
 
-                if used_rag_successfully:
-                    with st.expander(f"📄 참고 문서 ({final_source_count}개)"):
-                        if final_context: 
-                            for i, doc in enumerate(final_context):
-                                st.markdown(f"**📖 문서 {i+1}**")
-                                source = doc.metadata.get('source', '출처 정보 없음')
-                                st.markdown(f"**출처:** `{source}`")
-                                if 'page' in doc.metadata:
-                                    page = doc.metadata.get('page')
-                                    st.markdown(f"**페이지:** {page + 1}")
-                                st.text_area(
-                                    f"문서 {i+1} 내용",
-                                    doc.page_content,
-                                    height=150,
-                                    key=f"doc_{i}",
-                                    label_visibility="collapsed"
-                                )
-                                if i < len(final_context) - 1:
-                                    st.markdown("---")
-                        else: 
-                            st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
-                else: 
-                    st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
+                    else: # 의도 파악 실패 시 (LLM이 'DOCUMENTS' 또는 'GENERAL' 외의 것을 반환한 경우) 기본 RAG 모드로 진행
+                        st.warning(f"의도 파악에 실패했습니다. (응답: {determined_intent}). 기본적으로 RAG 모드로 진행합니다.")
+                        config = {"configurable": {"session_id": "rag_chat"}}
+                        response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
+                        
+                        rag_answer_content = response_from_rag_formatted['answer']
+                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
+                            st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다. (의도 파악 실패 후)")
+                            config = {"configurable": {"session_id": "general_chat"}} 
+                            response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                            final_answer = response_from_llm_formatted['answer']
+                        else:
+                            final_answer = response_from_rag_formatted['answer']
+                            final_context = response_from_rag_formatted['context']
+                            final_source_count = response_from_rag_formatted['source_count']
+                            used_rag_successfully = True
+
+                    st.write(final_answer)
+
+                    if used_rag_successfully:
+                        with st.expander(f"📄 참고 문서 ({final_source_count}개)"):
+                            if final_context: 
+                                for i, doc in enumerate(final_context):
+                                    st.markdown(f"**📖 문서 {i+1}**")
+                                    source = doc.metadata.get('source', '출처 정보 없음')
+                                    st.markdown(f"**출처:** `{source}`")
+                                    if 'page' in doc.metadata:
+                                        page = doc.metadata.get('page')
+                                        st.markdown(f"**페이지:** {page + 1}")
+                                    st.text_area(
+                                        f"문서 {i+1} 내용",
+                                        doc.page_content,
+                                        height=150,
+                                        key=f"doc_{i}",
+                                        label_visibility="collapsed"
+                                    )
+                                    if i < len(final_context) - 1:
+                                        st.markdown("---")
+                            else: 
+                                st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
+                    else: 
+                        st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
