@@ -279,8 +279,9 @@ def initialize_rag_system(model_name):
                 processed_any_document = True
 
             except Exception as e:
-                # ★★★ 오류 발생 시 파일명과 함께 st.error로 출력하고, st.exception으로 상세 트레이스 제공, 그리고 st.stop()으로 앱 중지 ★★★
-                st.error(f"❌ 파일 '{filename}' 처리 중 오류 발생: {e}") 
+                # ★★★ 오류 발생 시 파일명과 함께 st.markdown으로 강조하고, st.error, st.exception 출력 후 앱 중지 ★★★
+                st.markdown(f"## ❌ 오류 발생 파일: `{filename}`") # 파일명을 더 크게 강조
+                st.error(f"❌ 파일 처리 중 오류: {e}") 
                 st.exception(e) # 콘솔/상세 오류 창에 스택 트레이스 출력
                 st.stop() # 앱 실행 중지
 
@@ -422,9 +423,8 @@ def main():
         st.chat_message("human").write(prompt)
 
         with st.chat_message("ai"):
-            # ★★★ 이 try 블록의 들여쓰기를 수정했습니다. ★★★
-            try:
-                with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
+            with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
+                try:
                     # 질문 유형 결정 로직
                     determined_intent = ""
                     
@@ -533,10 +533,9 @@ def main():
                     else: 
                         st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
-            except Exception as e:
-                # 이 except 블록의 들여쓰기는 with st.spinner(...)와 동일 레벨로 수정되었습니다.
-                st.error(f"오류가 발생했습니다: {str(e)}")
-                st.info("다시 시도해주세요.")
+                except Exception as e:
+                    st.error(f"오류가 발생했습니다: {str(e)}")
+                    st.info("다시 시도해주세요.")
 
 if __name__ == "__main__":
     main()
