@@ -15,6 +15,13 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.messages import AIMessage
 import nltk 
 
+# ★★★ st.set_page_config()를 main() 함수 밖으로 이동하여 앱 시작 시 한 번만 호출되도록 합니다. ★★★
+st.set_page_config(
+    page_title="RAG 문서 Q&A 챗봇",
+    page_icon="🤖",
+    layout="wide"
+)
+
 # OpenAI API Key 설정
 # 보안을 위해 Streamlit Secrets를 사용하는 것을 강력히 권장합니다.
 # https://docs.streamlit.io/deploy/streamlit-cloud/secrets-management
@@ -246,8 +253,7 @@ def initialize_rag_system(model_name):
     
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
     
-    # LLMManager 호출 시 'model_name' 인자 사용으로 수정
-    general_llm_manager = LLMManager(model_name=model_name) 
+    general_llm_manager = LLMManager(model_name=model_name) # model 인자 전달
     general_llm = general_llm_manager.get_llm()
 
 
@@ -286,8 +292,8 @@ def initialize_rag_system(model_name):
                 processed_any_document = True
 
             except Exception as e:
-                # ★★★ 오류 발생 시 파일명과 오류 메시지를 st.write로 먼저 출력 ★★★
-                st.write(f"## ❌ 오류 발생 파일: `{filename}`") # 파일명을 더 크게 강조
+                # 오류 발생 시 파일명과 함께 st.markdown으로 강조하고, st.error, st.exception 출력 후 앱 중지
+                st.markdown(f"## ❌ 오류 발생 파일: `{filename}`") # 파일명을 더 크게 강조
                 st.error(f"❌ 파일 처리 중 오류: {e}") 
                 st.exception(e) # 콘솔/상세 오류 창에 스택 트레이스 출력
                 st.stop() # 앱 실행 중지
@@ -347,12 +353,6 @@ def main():
     nltk_download_status = download_nltk_data()
     if nltk_download_status is None: 
         return
-
-    st.set_page_config(
-        page_title="RAG 문서 Q&A 챗봇",
-        page_icon="🤖",
-        layout="wide"
-    )
 
     st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
     st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
@@ -422,7 +422,7 @@ def main():
     # --------------------------------------------------------
     
     if not chat_history.messages:
-        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! �")
+        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
 
     for msg in chat_history.messages:
         st.chat_message(msg.type).write(msg.content)
@@ -538,8 +538,8 @@ def main():
                                         st.markdown("---")
                             else: 
                                 st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
-                    else: 
-                        st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
+                else: 
+                    st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
