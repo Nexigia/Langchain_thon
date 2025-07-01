@@ -6,12 +6,9 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-# 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader, UnstructuredFileLoader 포함
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader, UnstructuredFileLoader 
-# RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-# AIMessage 임포트 추가
 from langchain_core.messages import AIMessage
 import nltk 
 
@@ -22,12 +19,7 @@ st.set_page_config(
 )
 
 # OpenAI API Key 설정
-try:
-    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-except KeyError:
-    st.error("❌ OpenAI API Key가 Streamlit Secrets에 설정되어 있지 않습니다. 'OPENAI_API_KEY'를 추가해주세요.")
-    st.info("자세한 내용은 Streamlit Secrets 관리 문서를 참조하세요: https://docs.streamlit.io/deploy/streamlit-cloud/secrets-management")
-    st.stop() # API 키 없으면 앱 실행 중지
+os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 
 # ====================================
@@ -535,8 +527,8 @@ def main():
                                         st.markdown("---")
                             else: 
                                 st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
-                else: 
-                    st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
+                    else: # ★★★ 이 else 블록의 들여쓰기를 확인하세요. if used_rag_successfully: 와 동일 레벨이어야 합니다. ★★★
+                        st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
