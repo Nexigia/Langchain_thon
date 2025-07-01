@@ -6,7 +6,8 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader, UnstructuredFileLoader 
+# PyPDFLoader 대신 UnstructuredFileLoader를 PDF에 사용합니다.
+from langchain_community.document_loaders import Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, UnstructuredFileLoader 
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.messages import AIMessage
@@ -20,7 +21,6 @@ st.set_page_config(
 
 # OpenAI API Key 설정
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-
 
 # ====================================
 # PRE-PROCESSING 단계
@@ -36,7 +36,7 @@ class DocumentProcessor:
         return []
 
     @staticmethod
-    def split_text(documents, chunk_size=100, chunk_overlap=20): 
+    def split_text(documents, chunk_size=50, chunk_overlap=10):
         """
         2. 텍스트 분할 (청크 분할)
         - 불러온 문서를 청크 단위로 분할합니다.
@@ -90,7 +90,7 @@ class RAGRetriever:
         return retriever
 
 class PromptManager:
-    """프롬프트 관리 클래스""" 
+    """프롬프트 관리 클래스"""
 
     @staticmethod
     def get_contextualize_prompt():
@@ -145,7 +145,7 @@ class PromptManager:
             ("human", "{input}"),
         ])
 
-    @staticmethod 
+    @staticmethod
     def get_intent_detection_prompt(): 
         """
         사용자 질문의 의도를 감지하기 위한 프롬프트입니다. LLM이 'DOCUMENTS' 또는 'GENERAL' 텍스트를 직접 반환하도록 유도합니다.
@@ -154,11 +154,6 @@ class PromptManager:
             ("system", "사용자의 질문 의도를 분류하세요. 문서 관련 질문이면 'DOCUMENTS', 일반적인 지식 질문이면 'GENERAL'. 답변은 오직 'DOCUMENTS' 또는 'GENERAL' 중 하나로만 하세요."),
             ("human", "{question}"), 
         ])
-
-    
-    # RAG 모드를 강제할 키워드를 쉼표로 구분하여 입력하세요. (클래스 속성으로 이동)
-    # 예: "문서, 보고서, 파일"
-    FORCE_RAG_KEYWORDS = "문서, 보고서, 계약서"
 
 
 class LLMManager:
@@ -242,7 +237,7 @@ def initialize_rag_system(model_name):
     
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
     
-    general_llm_manager = LLMManager(model_name=model_name) # model 인자 전달
+    general_llm_manager = LLMManager(model_name)
     general_llm = general_llm_manager.get_llm()
 
 
@@ -253,16 +248,17 @@ def initialize_rag_system(model_name):
         if os.path.isfile(filepath): 
             try:
                 if filename.lower().endswith(".pdf"):
-                    loader = PyPDFLoader(filepath)
+                    # ★★★ PyPDFLoader 대신 UnstructuredFileLoader 사용 ★★★
+                    loader = UnstructuredFileLoader(filepath) 
                 elif filename.lower().endswith(".docx"):
                     loader = Docx2txtLoader(filepath)
                 elif filename.lower().endswith(".pptx"):
                     loader = UnstructuredPowerPointLoader(filepath) 
                 elif filename.lower().endswith(".txt"):
-                    # TextLoader에 encoding="utf-8" 추가
                     loader = TextLoader(filepath, encoding="utf-8") 
-                elif filename.lower().endswith(".csv"): 
-                    loader = CSVLoader(filepath)
+                # CSVLoader는 UnstructuredFileLoader가 처리할 수 있으므로 제거합니다.
+                # elif filename.lower().endswith(".csv"): 
+                #     loader = CSVLoader(filepath)
                 else:
                     continue 
 
@@ -281,20 +277,16 @@ def initialize_rag_system(model_name):
                 processed_any_document = True
 
             except Exception as e:
-                # 오류 발생 시 파일명과 함께 st.markdown으로 강조하고, st.error, st.exception 출력 후 앱 중지
-                st.markdown(f"## ❌ 오류 발생 파일: `{filename}`") # 파일명을 더 크게 강조
-                st.error(f"❌ 파일 처리 중 오류: {e}") 
-                st.exception(e) # 콘솔/상세 오류 창에 스택 트레이스 출력
-                st.stop() # 앱 실행 중지
+                st.error(f"❌ 파일 {filename} 처리 중 오류 발생: {e}") 
+                continue 
 
     if not processed_any_document or vectorstore is None:
         st.error("❌ 'data' 폴더에 처리할 문서가 없거나 모든 문서 처리 중 오류가 발생하여 벡터 DB를 생성하지 못했습니다.") 
-        st.stop() # 벡터 DB 없으면 앱 실행 불가
+        return None 
     
     rag_retriever = RAGRetriever(vectorstore)
     retriever = rag_retriever.get_retriever()
-    # LLMManager 호출 시 'model_name' 인자 사용으로 수정
-    llm_manager = LLMManager(model_name=model_name) 
+    llm_manager = LLMManager(model_name)
     llm = llm_manager.get_llm()
     rag_chain = RAGChain(retriever, llm) # RAG 체인
     
@@ -335,6 +327,9 @@ def format_output(response):
 def main():
 
     # Session State 초기화
+    if 'force_rag_keywords' not in st.session_state:
+        st.session_state.force_rag_keywords = ""
+    # 사용자 정의 질문 유형 설정 상태 초기화
     if 'question_type_override' not in st.session_state:
         st.session_state.question_type_override = "자동 분류" # 기본값
 
@@ -355,14 +350,22 @@ def main():
         )
         st.markdown("---")
         
-        # 사용자 정의 질문 유형 선택 필드 추가 (UI에서 사용)
+        # RAG 강제 활성화 키워드 입력 필드
+        st.session_state.force_rag_keywords = st.text_input(
+            "RAG 강제 활성화 키워드 (쉼표로 구분)",
+            value=st.session_state.force_rag_keywords,
+            help="여기에 입력된 키워드가 질문에 포함되면, LLM 의도 분류와 관계없이 RAG 모드로 강제 실행됩니다. (예: 문서, 보고서, 파일)"
+        )
+        st.markdown("---") # 구분선 추가
+
+        # 사용자 정의 질문 유형 선택 필드 추가
         st.session_state.question_type_override = st.radio(
             "질문 유형 설정",
             ("자동 분류", "문서 관련 강제", "일반 지식 강제"),
             index=["자동 분류", "문서 관련 강제", "일반 지식 강제"].index(st.session_state.question_type_override),
-            help="질문 처리 방식을 수동으로 설정합니다. '자동 분류'는 LLM 또는 코드에 설정된 키워드에 따라 결정됩니다."
+            help="질문 처리 방식을 수동으로 설정합니다. '자동 분류'는 LLM 또는 키워드에 따라 결정됩니다."
         )
-        st.markdown("---") 
+        st.markdown("---") # 구분선 추가
 
 
         st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
@@ -390,7 +393,7 @@ def main():
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
     conversational_rag_chain = rag_chain_wrapper.get_conversational_chain(chat_history)
     
-    prompt_manager = PromptManager() # PromptManager 인스턴스 생성
+    prompt_manager = PromptManager() 
     general_llm_chain_template = prompt_manager.get_general_qa_prompt() 
     
     general_qa_chain_raw = general_llm_chain_template | llm_for_general_qa # LCEL 사용
@@ -403,7 +406,7 @@ def main():
     )
     
     # --- 의도 감지 체인 생성 (텍스트 반환 및 파싱으로 변경) ---
-    intent_detection_prompt = prompt_manager.get_intent_detection_prompt() 
+    intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
     intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) 
     
     # 프롬프트와 LLM을 직접 연결 (structured_output 사용 제거)
@@ -422,10 +425,10 @@ def main():
         with st.chat_message("ai"):
             with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
                 try:
-                    # 질문 유형 결정 로직
+                    # ★★★ 질문 유형 결정 로직 수정 ★★★
                     determined_intent = ""
                     
-                    # 1. 사용자 수동 설정 우선 적용 (st.session_state.question_type_override 사용)
+                    # 1. 사용자 수동 설정 우선 적용
                     if st.session_state.question_type_override == "문서 관련 강제":
                         determined_intent = "DOCUMENTS"
                         st.info("⚙️ 사용자 설정에 따라 RAG 모드로 강제 전환합니다.")
@@ -433,10 +436,10 @@ def main():
                         determined_intent = "GENERAL"
                         st.info("⚙️ 사용자 설정에 따라 일반 LLM 모드로 강제 전환합니다.")
                     else: # "자동 분류"일 경우
-                        # 2. 키워드 기반 RAG 강제 활성화 로직 (PromptManager.FORCE_RAG_KEYWORDS 클래스 속성 사용)
+                        # 2. 키워드 기반 RAG 강제 활성화 로직
                         force_rag_by_keyword = False
-                        if PromptManager.FORCE_RAG_KEYWORDS: # 클래스 속성이 비어있지 않은 경우에만 검사
-                            keywords = [k.strip().lower() for k in PromptManager.FORCE_RAG_KEYWORDS.split(',') if k.strip()]
+                        if st.session_state.force_rag_keywords:
+                            keywords = [k.strip().lower() for k in st.session_state.force_rag_keywords.split(',') if k.strip()]
                             for keyword in keywords:
                                 if keyword in prompt.lower():
                                     force_rag_by_keyword = True
@@ -444,11 +447,10 @@ def main():
                         
                         if force_rag_by_keyword:
                             determined_intent = "DOCUMENTS" # 키워드가 발견되면 RAG 강제
-                            st.info(f"🔑 코드에 설정된 키워드 '{PromptManager.FORCE_RAG_KEYWORDS}' 감지! RAG 모드로 강제 전환합니다.")
+                            st.info(f"🔑 키워드 '{', '.join(keywords)}' 감지! RAG 모드로 강제 전환합니다.")
                         else:
                             # 3. LLM 기반 의도 감지
                             try:
-                                # PromptManager 인스턴스를 통해 메서드 호출
                                 intent_response_message = intent_detection_chain_pre_invoke.invoke(
                                     {"question": prompt} 
                                 )
@@ -457,78 +459,78 @@ def main():
                                 st.warning(f"LLM 의도 감지 중 오류 발생: {e}. 기본적으로 RAG 모드로 진행합니다.")
                                 determined_intent = "DOCUMENTS" # LLM 의도 감지 실패 시 RAG 폴백
 
-                    final_answer = ""
-                    final_context = []
-                    final_source_count = 0
-                    used_rag_successfully = False 
+                final_answer = ""
+                final_context = []
+                final_source_count = 0
+                used_rag_successfully = False 
 
-                    if determined_intent == "GENERAL": 
-                        st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
-                        config = {"configurable": {"session_id": "general_chat"}}
+                if determined_intent == "GENERAL": 
+                    st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
+                    config = {"configurable": {"session_id": "general_chat"}}
+                    response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                    final_answer = response_from_llm_formatted['answer']
+
+                elif determined_intent == "DOCUMENTS":
+                    st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
+                    config = {"configurable": {"session_id": "rag_chat"}}
+                    response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
+                    
+                    rag_answer_content = response_from_rag_formatted['answer']
+
+                    # LLM이 "문서에 관련 정보가 없습니다."를 생성하거나 컨텍스트가 없으면 폴백
+                    if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
+                        st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다.")
+                        config = {"configurable": {"session_id": "general_chat"}} 
                         response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
                         final_answer = response_from_llm_formatted['answer']
+                    else:
+                        final_answer = response_from_rag_formatted['answer']
+                        final_context = response_from_rag_formatted['context']
+                        final_source_count = response_from_rag_formatted['source_count']
+                        used_rag_successfully = True 
 
-                    elif determined_intent == "DOCUMENTS":
-                        st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
-                        config = {"configurable": {"session_id": "rag_chat"}}
-                        response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
-                        
-                        rag_answer_content = response_from_rag_formatted['answer']
+                else: # 의도 파악 실패 시 (LLM이 'DOCUMENTS' 또는 'GENERAL' 외의 것을 반환한 경우) 기본 RAG 모드로 진행
+                    st.warning(f"의도 파악에 실패했습니다. (응답: {determined_intent}). 기본적으로 RAG 모드로 진행합니다.")
+                    config = {"configurable": {"session_id": "rag_chat"}}
+                    response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
+                    
+                    rag_answer_content = response_from_rag_formatted['answer']
+                    if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
+                        st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다. (의도 파악 실패 후)")
+                        config = {"configurable": {"session_id": "general_chat"}} 
+                        response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
+                        final_answer = response_from_llm_formatted['answer']
+                    else:
+                        final_answer = response_from_rag_formatted['answer']
+                        final_context = response_from_rag_formatted['context']
+                        final_source_count = response_from_rag_formatted['source_count']
+                        used_rag_successfully = True
 
-                        # LLM이 "문서에 관련 정보가 없습니다."를 생성하거나 컨텍스트가 없으면 폴백
-                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
-                            st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다.")
-                            config = {"configurable": {"session_id": "general_chat"}} 
-                            response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
-                            final_answer = response_from_llm_formatted['answer']
-                        else:
-                            final_answer = response_from_rag_formatted['answer']
-                            final_context = response_from_rag_formatted['context']
-                            final_source_count = response_from_rag_formatted['source_count']
-                            used_rag_successfully = True 
+                st.write(final_answer)
 
-                    else: # 의도 파악 실패 시 (LLM이 'DOCUMENTS' 또는 'GENERAL' 외의 것을 반환한 경우) 기본 RAG 모드로 진행
-                        st.warning(f"의도 파악에 실패했습니다. (응답: {determined_intent}). 기본적으로 RAG 모드로 진행합니다.")
-                        config = {"configurable": {"session_id": "rag_chat"}}
-                        response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
-                        
-                        rag_answer_content = response_from_rag_formatted['answer']
-                        if "문서에 관련 정보가 없습니다." in rag_answer_content or not response_from_rag_formatted.get('context'):
-                            st.warning("⚠️ 문서에서 관련 정보를 찾지 못하여 LLM의 일반 지식으로 전환합니다. (의도 파악 실패 후)")
-                            config = {"configurable": {"session_id": "general_chat"}} 
-                            response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
-                            final_answer = response_from_llm_formatted['answer']
-                        else:
-                            final_answer = response_from_rag_formatted['answer']
-                            final_context = response_from_rag_formatted['context']
-                            final_source_count = response_from_rag_formatted['source_count']
-                            used_rag_successfully = True
-
-                    st.write(final_answer)
-
-                    if used_rag_successfully:
-                        with st.expander(f"📄 참고 문서 ({final_source_count}개)"):
-                            if final_context: 
-                                for i, doc in enumerate(final_context):
-                                    st.markdown(f"**📖 문서 {i+1}**")
-                                    source = doc.metadata.get('source', '출처 정보 없음')
-                                    st.markdown(f"**출처:** `{source}`")
-                                    if 'page' in doc.metadata:
-                                        page = doc.metadata.get('page')
-                                        st.markdown(f"**페이지:** {page + 1}")
-                                    st.text_area(
-                                        f"문서 {i+1} 내용",
-                                        doc.page_content,
-                                        height=150,
-                                        key=f"doc_{i}",
-                                        label_visibility="collapsed"
-                                    )
-                                    if i < len(final_context) - 1:
-                                        st.markdown("---")
-                            else: 
-                                st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
-                    else: # ★★★ 이 else 블록의 들여쓰기를 확인하세요. if used_rag_successfully: 와 동일 레벨이어야 합니다. ★★★
-                        st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
+                if used_rag_successfully:
+                    with st.expander(f"📄 참고 문서 ({final_source_count}개)"):
+                        if final_context: 
+                            for i, doc in enumerate(final_context):
+                                st.markdown(f"**📖 문서 {i+1}**")
+                                source = doc.metadata.get('source', '출처 정보 없음')
+                                st.markdown(f"**출처:** `{source}`")
+                                if 'page' in doc.metadata:
+                                    page = doc.metadata.get('page')
+                                    st.markdown(f"**페이지:** {page + 1}")
+                                st.text_area(
+                                    f"문서 {i+1} 내용",
+                                    doc.page_content,
+                                    height=150,
+                                    key=f"doc_{i}",
+                                    label_visibility="collapsed"
+                                )
+                                if i < len(final_context) - 1:
+                                    st.markdown("---")
+                        else: 
+                            st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
+                else: 
+                    st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
