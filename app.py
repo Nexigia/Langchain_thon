@@ -246,7 +246,7 @@ def initialize_rag_system(model_name):
     
     embeddings = OpenAIEmbeddings(model='text-embedding-3-small') 
     
-    general_llm_manager = LLMManager(model_name)
+    general_llm_manager = LLMManager(model=model_name) # model 인자 전달
     general_llm = general_llm_manager.get_llm()
 
 
@@ -297,7 +297,7 @@ def initialize_rag_system(model_name):
     
     rag_retriever = RAGRetriever(vectorstore)
     retriever = rag_retriever.get_retriever()
-    llm_manager = LLMManager(model_name)
+    llm_manager = LLMManager(model=model_name) # model 인자 전달
     llm = llm_manager.get_llm()
     rag_chain = RAGChain(retriever, llm) # RAG 체인
     
@@ -348,7 +348,7 @@ def main():
 
     st.set_page_config(
         page_title="RAG 문서 Q&A 챗봇",
-        page_icon="🤖",
+        page_icon="�",
         layout="wide"
     )
 
