@@ -6,21 +6,17 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-# 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader 포함
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader
-# RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-# AIMessage 임포트 추가
 from langchain_core.messages import AIMessage
 import nltk 
 
-# pydantic 임포트와 Intent 모델은 더 이상 사용하지 않으므로 제거합니다.
-# from pydantic import BaseModel, Field
-# from typing import Literal 
-
 # OpenAI API Key 설정
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+# 보안을 위해 Streamlit Secrets를 사용하는 것을 강력히 권장합니다.
+# https://docs.streamlit.io/deploy/streamlit-cloud/secrets-management
+# os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+os.environ["OPENAI_API_KEY"] = "MY_KEY"
 
 # ====================================
 # PRE-PROCESSING 단계
@@ -32,11 +28,16 @@ class DocumentProcessor:
     @staticmethod
     @st.cache_resource
     def load_documents(directory_path: str):
-        st.warning("DocumentProcessor.load_documents는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.")
+        # 이 함수는 현재 사용되지 않습니다. initialize_rag_system을 확인하세요.
         return []
 
     @staticmethod
     def split_text(documents, chunk_size=100, chunk_overlap=20): 
+        """
+        2. 텍스트 분할 (청크 분할)
+        - 불러온 문서를 청크 단위로 분할합니다.
+        - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
+        """
         text_splitter = RecursiveCharacterTextSplitter( 
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -48,24 +49,24 @@ class DocumentProcessor:
     @staticmethod
     # @st.cache_resource 
     def create_vector_store(_split_docs, embeddings): 
+        """
+        4. DB 저장 (벡터 저장소)
+        - 변환된 벡터를 FAISS DB에 저장합니다.
+        """
         vectorstore = FAISS.from_documents(_split_docs, embeddings)
         return vectorstore
     
     @staticmethod
     def add_documents_to_vector_store(vectorstore, split_docs, embeddings): 
+        """
+        기존 벡터 저장소에 새로운 문서 청크들을 추가합니다.
+        """
         vectorstore.add_documents(split_docs) 
         return vectorstore
 
 # ====================================
 # RUNTIME 단계
 # ====================================
-
-# Intent Pydantic 모델 정의는 더 이상 사용하지 않으므로 제거합니다.
-# class Intent(BaseModel):
-#     """사용자 질문의 의도를 분류합니다."""
-#     category: Literal["DOCUMENTS", "GENERAL"] = Field(
-#         description="질문이 문서 관련 질문인지 (DOCUMENTS) 또는 일반 지식 질문인지 (GENERAL) 분류합니다."
-#     )
 
 class RAGRetriever:
     """검색기(Retriever) 관리 클래스"""
@@ -74,6 +75,10 @@ class RAGRetriever:
         self.vectorstore = vectorstore
 
     def get_retriever(self, search_type="similarity", k=5):
+        """
+        1. 검색 (Retrieve)
+        - 벡터 DB에서 관련 문서를 찾는 검색기를 생성합니다. (k값을 5로 조정하여 더 많은 문맥 참조)
+        """
         retriever = self.vectorstore.as_retriever(
             search_type=search_type,
             search_kwargs={"k": k}
@@ -81,10 +86,18 @@ class RAGRetriever:
         return retriever
 
 class PromptManager:
-    """프롬프트 관리 클래스"""
+    """프롬프트 관리 클래스""" 
+
+    # RAG 모드를 강제할 키워드를 쉼표로 구분하여 입력하세요. (클래스 속성으로 이동)
+    # 예: "문서, 보고서, 파일"
+    FORCE_RAG_KEYWORDS = "문서, 보고서, 계약서"
 
     @staticmethod
     def get_contextualize_prompt():
+        """
+        2. 프롬프트 (프롬프트) - 대화 맥락화
+        - 채팅 기록을 바탕으로 후속 질문을 독립적인 질문으로 재구성합니다.
+        """
         contextualize_q_system_prompt = """주어진 채팅 히스토리와 최신 사용자 질문을 바탕으로,
         채팅 히스토리 없이도 이해할 수 있는 독립적인 질문으로 재구성하세요.
         질문에 답하지 말고, 필요시 재구성하거나 그대로 반환하세요."""
@@ -97,6 +110,10 @@ class PromptManager:
 
     @staticmethod
     def get_qa_prompt():
+        """
+        2. 프롬프트 (프롬프트) - 질문 답변
+        - 검색된 문맥을 바탕으로 답변을 생성하기 위한 프롬프트입니다.
+        """
         qa_system_prompt = """당신은 주어진 문서를 기반으로 질문에 답변하는 AI 어시스턴트입니다.
         제공된 검색 결과를 바탕으로 질문에 답변하세요.
 
@@ -117,6 +134,9 @@ class PromptManager:
     
     @staticmethod
     def get_general_qa_prompt():
+        """
+        문서 검색 없이 일반적인 질문에 답변하기 위한 프롬프트입니다.
+        """
         general_system_prompt = """당신은 유용한 AI 어시스턴트입니다. 사용자의 질문에 간결하고 정확하게 답변하세요.
         어떤 상황에서도 문서 검색을 시도하지 말고, 오직 당신의 일반 지식으로만 답변하세요."""
         return ChatPromptTemplate.from_messages([
@@ -125,7 +145,7 @@ class PromptManager:
             ("human", "{input}"),
         ])
 
-    @staticmethod
+    @staticmethod 
     def get_intent_detection_prompt(): 
         """
         사용자 질문의 의도를 감지하기 위한 프롬프트입니다. LLM이 'DOCUMENTS' 또는 'GENERAL' 텍스트를 직접 반환하도록 유도합니다.
@@ -134,7 +154,6 @@ class PromptManager:
             ("system", "사용자의 질문 의도를 분류하세요. 문서 관련 질문이면 'DOCUMENTS', 일반적인 지식 질문이면 'GENERAL'. 답변은 오직 'DOCUMENTS' 또는 'GENERAL' 중 하나로만 하세요."),
             ("human", "{question}"), 
         ])
-
 
 class LLMManager:
     """
@@ -220,7 +239,6 @@ def initialize_rag_system(model_name):
     general_llm_manager = LLMManager(model_name)
     general_llm = general_llm_manager.get_llm()
 
-
     processed_any_document = False
     for filename in os.listdir(data_path):
         filepath = os.path.join(data_path, filename)
@@ -233,10 +251,9 @@ def initialize_rag_system(model_name):
                     loader = Docx2txtLoader(filepath)
                 elif filename.lower().endswith(".pptx"):
                     loader = UnstructuredPowerPointLoader(filepath) 
-               elif filename.lower().endswith(".txt"):
+                elif filename.lower().endswith(".txt"):
+                    # TextLoader에 encoding="utf-8" 추가
                     loader = TextLoader(filepath, encoding="utf-8") 
-                    if st.session_state.get('debug_mode', False):
-                        st.info(f"TXT 파일 로딩 시도: {filepath} (인코딩: utf-8)")
                 elif filename.lower().endswith(".csv"): 
                     loader = CSVLoader(filepath)
                 else:
@@ -305,7 +322,12 @@ def format_output(response):
 # ====================================
 
 def main():
+    # Session State 초기화
+    # 사용자 정의 질문 유형 설정 상태 초기화 (UI에서 사용)
+    if 'question_type_override' not in st.session_state:
+        st.session_state.question_type_override = "자동 분류" # 기본값
 
+    # NLTK 데이터 다운로드
     nltk_download_status = download_nltk_data()
     if nltk_download_status is None: 
         return
@@ -327,6 +349,16 @@ def main():
             help="사용할 GPT 모델을 선택하세요"
         )
         st.markdown("---")
+        
+        # 사용자 정의 질문 유형 선택 필드 추가 (UI에서 사용)
+        st.session_state.question_type_override = st.radio(
+            "질문 유형 설정",
+            ("자동 분류", "문서 관련 강제", "일반 지식 강제"),
+            index=["자동 분류", "문서 관련 강제", "일반 지식 강제"].index(st.session_state.question_type_override),
+            help="질문 처리 방식을 수동으로 설정합니다. '자동 분류'는 LLM 또는 코드에 설정된 키워드에 따라 결정됩니다."
+        )
+        st.markdown("---") 
+
         st.info("`data` 폴더에 파일을 추가/삭제한 후에는 페이지를 새로고침하여 시스템을 다시 초기화해주세요.")
         st.markdown("---")
         st.markdown("### 📊 RAG 프로세스")
@@ -352,7 +384,7 @@ def main():
     chat_history = StreamlitChatMessageHistory(key="chat_messages")
     conversational_rag_chain = rag_chain_wrapper.get_conversational_chain(chat_history)
     
-    prompt_manager = PromptManager() 
+    prompt_manager = PromptManager() # PromptManager 인스턴스 생성
     general_llm_chain_template = prompt_manager.get_general_qa_prompt() 
     
     general_qa_chain_raw = general_llm_chain_template | llm_for_general_qa # LCEL 사용
@@ -365,7 +397,7 @@ def main():
     )
     
     # --- 의도 감지 체인 생성 (텍스트 반환 및 파싱으로 변경) ---
-    intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
+    intent_detection_prompt = prompt_manager.get_intent_detection_prompt() 
     intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) 
     
     # 프롬프트와 LLM을 직접 연결 (structured_output 사용 제거)
@@ -384,30 +416,55 @@ def main():
         with st.chat_message("ai"):
             with st.spinner("🧐 질문을 분석하고 답변을 생성 중입니다..."): 
                 try:
-                    # 1. 질문 의도 감지 (텍스트 응답 파싱)
-                    intent_response_message = intent_detection_chain_pre_invoke.invoke(
-                        {"question": prompt} 
-                    )
+                    # 질문 유형 결정 로직
+                    determined_intent = ""
                     
-                    # AIMessage.content에서 텍스트 추출 후 파싱
-                    intent = intent_response_message.content.strip().upper() 
+                    # 1. 사용자 수동 설정 우선 적용 (st.session_state.question_type_override 사용)
+                    if st.session_state.question_type_override == "문서 관련 강제":
+                        determined_intent = "DOCUMENTS"
+                        st.info("⚙️ 사용자 설정에 따라 RAG 모드로 강제 전환합니다.")
+                    elif st.session_state.question_type_override == "일반 지식 강제":
+                        determined_intent = "GENERAL"
+                        st.info("⚙️ 사용자 설정에 따라 일반 LLM 모드로 강제 전환합니다.")
+                    else: # "자동 분류"일 경우
+                        # 2. 키워드 기반 RAG 강제 활성화 로직 (PromptManager.FORCE_RAG_KEYWORDS 클래스 속성 사용)
+                        force_rag_by_keyword = False
+                        if PromptManager.FORCE_RAG_KEYWORDS: # 클래스 속성이 비어있지 않은 경우에만 검사
+                            keywords = [k.strip().lower() for k in PromptManager.FORCE_RAG_KEYWORDS.split(',') if k.strip()]
+                            for keyword in keywords:
+                                if keyword in prompt.lower():
+                                    force_rag_by_keyword = True
+                                    break
+                        
+                        if force_rag_by_keyword:
+                            determined_intent = "DOCUMENTS" # 키워드가 발견되면 RAG 강제
+                            st.info(f"🔑 코드에 설정된 키워드 '{PromptManager.FORCE_RAG_KEYWORDS}' 감지! RAG 모드로 강제 전환합니다.")
+                        else:
+                            # 3. LLM 기반 의도 감지
+                            try:
+                                # PromptManager 인스턴스를 통해 메서드 호출
+                                intent_response_message = intent_detection_chain_pre_invoke.invoke(
+                                    {"question": prompt} 
+                                )
+                                determined_intent = intent_response_message.content.strip().upper() 
+                            except Exception as e:
+                                st.warning(f"LLM 의도 감지 중 오류 발생: {e}. 기본적으로 RAG 모드로 진행합니다.")
+                                determined_intent = "DOCUMENTS" # LLM 의도 감지 실패 시 RAG 폴백
 
                     final_answer = ""
                     final_context = []
                     final_source_count = 0
                     used_rag_successfully = False 
 
-                    if intent == "GENERAL": 
+                    if determined_intent == "GENERAL": 
                         st.info("💡 일반적인 질문으로 판단하여 LLM의 일반 지식으로 답변합니다.")
                         config = {"configurable": {"session_id": "general_chat"}}
-                        # invoke 결과는 format_output으로 통일된 딕셔너리 형태로 변환 후 사용
                         response_from_llm_formatted = format_output(general_conversational_chain.invoke({"input": prompt}, config))
                         final_answer = response_from_llm_formatted['answer']
 
-                    elif intent == "DOCUMENTS":
+                    elif determined_intent == "DOCUMENTS":
                         st.info("🔍 문서 관련 질문으로 판단하여 문서 검색 후 답변합니다.")
                         config = {"configurable": {"session_id": "rag_chat"}}
-                        # invoke 결과는 format_output으로 통일된 딕셔너리 형태로 변환 후 사용
                         response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
                         
                         rag_answer_content = response_from_rag_formatted['answer']
@@ -424,10 +481,9 @@ def main():
                             final_source_count = response_from_rag_formatted['source_count']
                             used_rag_successfully = True 
 
-                    else: # 의도 파악 실패 시 기본 RAG 모드로 진행 (기존 로직)
-                        st.warning(f"의도 파악에 실패했습니다. (응답: {intent}). 기본적으로 RAG 모드로 진행합니다.")
+                    else: # 의도 파악 실패 시 (LLM이 'DOCUMENTS' 또는 'GENERAL' 외의 것을 반환한 경우) 기본 RAG 모드로 진행
+                        st.warning(f"의도 파악에 실패했습니다. (응답: {determined_intent}). 기본적으로 RAG 모드로 진행합니다.")
                         config = {"configurable": {"session_id": "rag_chat"}}
-                        # invoke 결과는 format_output으로 통일된 딕셔너리 형태로 변환 후 사용
                         response_from_rag_formatted = format_output(conversational_rag_chain.invoke({"input": prompt}, config))
                         
                         rag_answer_content = response_from_rag_formatted['answer']
@@ -467,7 +523,7 @@ def main():
                                 st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
                     else: 
                         st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
-
+                
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {str(e)}")
                     st.info("다시 시도해주세요.")
