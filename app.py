@@ -15,7 +15,6 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_core.messages import AIMessage
 import nltk 
 
-# ★★★ st.set_page_config()를 main() 함수 밖으로 이동하여 앱 시작 시 한 번만 호출되도록 합니다. ★★★
 st.set_page_config(
     page_title="RAG 문서 Q&A 챗봇",
     page_icon="🤖",
@@ -23,8 +22,6 @@ st.set_page_config(
 )
 
 # OpenAI API Key 설정
-# 보안을 위해 Streamlit Secrets를 사용하는 것을 강력히 권장합니다.
-# https://docs.streamlit.io/deploy/streamlit-cloud/secrets-management
 try:
     os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 except KeyError:
