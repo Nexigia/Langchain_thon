@@ -15,8 +15,8 @@ import nltk
 # OpenAI API Key 설정
 # 보안을 위해 Streamlit Secrets를 사용하는 것을 강력히 권장합니다.
 # https://docs.streamlit.io/deploy/streamlit-cloud/secrets-management
-# os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-os.environ["OPENAI_API_KEY"] = "MY_KEY"
+os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+# os.environ["OPENAI_API_KEY"] = "MY_KEY"
 
 # ====================================
 # PRE-PROCESSING 단계
