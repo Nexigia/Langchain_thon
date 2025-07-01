@@ -6,13 +6,17 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
+# 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader, UnstructuredFileLoader 포함
 # PyPDFLoader 대신 UnstructuredFileLoader를 PDF에 사용합니다.
 from langchain_community.document_loaders import Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, UnstructuredFileLoader 
+# RecursiveCharacterTextSplitter만 사용합니다.
 from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+# AIMessage 임포트 추가
 from langchain_core.messages import AIMessage
 import nltk 
 
+# ★★★ st.set_page_config()를 main() 함수 밖으로 이동하여 앱 시작 시 한 번만 호출되도록 합니다. ★★★
 st.set_page_config(
     page_title="RAG 문서 Q&A 챗봇",
     page_icon="🤖",
@@ -414,7 +418,7 @@ def main():
     # --------------------------------------------------------
     
     if not chat_history.messages:
-        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
+        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! �")
 
     for msg in chat_history.messages:
         st.chat_message(msg.type).write(msg.content)
@@ -527,8 +531,8 @@ def main():
                                 )
                                 if i < len(final_context) - 1:
                                     st.markdown("---")
-                        else: 
-                            st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
+                            else: 
+                                st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
                 else: 
                     st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
