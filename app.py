@@ -6,11 +6,10 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories.streamlit import StreamlitChatMessageHistory
-# 개별 파일 로더들을 임포트합니다. UnstructuredPowerPointLoader, UnstructuredFileLoader 포함
-# PyPDFLoader 대신 UnstructuredFileLoader를 PDF에 사용합니다.
-from langchain_community.document_loaders import Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, UnstructuredFileLoader 
+# 개별 파일 로더들을 임포트합니다. PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredPowerPointLoader, CSVLoader 
 # RecursiveCharacterTextSplitter만 사용합니다.
-from langchain.text_splitter import RecursiveCharacterTextSplitter # 오타 수정: RecursiveCharacterCharacterTextSplitter -> RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter 
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 # AIMessage 임포트 추가
 from langchain_core.messages import AIMessage
@@ -46,7 +45,7 @@ class DocumentProcessor:
         - 불러온 문서를 청크 단위로 분할합니다.
         - RecursiveCharacterTextSplitter를 사용하여 글자 단위로 분할하며, OpenAI 토큰 제한을 위해 chunk_size를 매우 보수적으로 설정합니다.
         """
-        text_splitter = RecursiveCharacterTextSplitter( # 올바른 클래스명
+        text_splitter = RecursiveCharacterTextSplitter( 
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""] 
@@ -252,17 +251,16 @@ def initialize_rag_system(model_name):
         if os.path.isfile(filepath): 
             try:
                 if filename.lower().endswith(".pdf"):
-                    # ★★★ PyPDFLoader 대신 UnstructuredFileLoader 사용 ★★★
-                    loader = UnstructuredFileLoader(filepath) 
+                    # ★★★ PyPDFLoader로 변경 ★★★
+                    loader = PyPDFLoader(filepath) 
                 elif filename.lower().endswith(".docx"):
                     loader = Docx2txtLoader(filepath)
                 elif filename.lower().endswith(".pptx"):
                     loader = UnstructuredPowerPointLoader(filepath) 
                 elif filename.lower().endswith(".txt"):
                     loader = TextLoader(filepath, encoding="utf-8") 
-                # CSVLoader는 UnstructuredFileLoader가 처리할 수 있으므로 제거합니다.
-                # elif filename.lower().endswith(".csv"): 
-                #     loader = CSVLoader(filepath)
+                elif filename.lower().endswith(".csv"): 
+                    loader = CSVLoader(filepath)
                 else:
                     continue 
 
@@ -342,7 +340,7 @@ def main():
     if nltk_download_status is None: 
         return
 
-    st.header("🤖 RAG 기반 문서 Q&A 챗봇 💬")
+    st.header("🤖 RAG 문서 Q&A 챗봇 💬")
     st.markdown("`data` 폴더의 문서(PDF, TXT, DOCX 등)를 기반으로 질문에 답변합니다.")
 
     with st.sidebar:
@@ -411,7 +409,7 @@ def main():
     
     # --- 의도 감지 체인 생성 (텍스트 반환 및 파싱으로 변경) ---
     intent_detection_prompt = prompt_manager.get_intent_detection_prompt()
-    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) # temperature=0으로 일관된 분류 유도
+    intent_detection_llm = ChatOpenAI(model=model_option, temperature=0) 
     
     # 프롬프트와 LLM을 직접 연결 (structured_output 사용 제거)
     intent_detection_chain_pre_invoke = intent_detection_prompt | intent_detection_llm
