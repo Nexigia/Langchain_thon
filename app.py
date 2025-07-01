@@ -19,7 +19,7 @@ import nltk
 # ★★★ st.set_page_config()를 main() 함수 밖으로 이동하여 앱 시작 시 한 번만 호출되도록 합니다. ★★★
 st.set_page_config(
     page_title="RAG 문서 Q&A 챗봇",
-    page_icon="🤖",
+    page_icon="�",
     layout="wide"
 )
 
@@ -259,6 +259,7 @@ def initialize_rag_system(model_name):
                 elif filename.lower().endswith(".pptx"):
                     loader = UnstructuredPowerPointLoader(filepath) 
                 elif filename.lower().endswith(".txt"):
+                    # TextLoader에 encoding="utf-8" 추가
                     loader = TextLoader(filepath, encoding="utf-8") 
                 # CSVLoader는 UnstructuredFileLoader가 처리할 수 있으므로 제거합니다.
                 # elif filename.lower().endswith(".csv"): 
@@ -418,7 +419,7 @@ def main():
     # --------------------------------------------------------
     
     if not chat_history.messages:
-        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! �")
+        chat_history.add_ai_message("안녕하세요! `data` 폴더의 문서에 대해 무엇이든 물어보세요! 📚")
 
     for msg in chat_history.messages:
         st.chat_message(msg.type).write(msg.content)
@@ -531,8 +532,8 @@ def main():
                                 )
                                 if i < len(final_context) - 1:
                                     st.markdown("---")
-                            else: 
-                                st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
+                        else: 
+                            st.info("답변에 참고한 문서를 찾을 수 없습니다.") 
                 else: 
                     st.info("답변에 참고한 문서가 없습니다. (일반 LLM 답변)") 
 
