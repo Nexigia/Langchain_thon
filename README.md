@@ -19,49 +19,14 @@
 
 ## 시스템 아키텍처
 
-<table style="border-collapse: collapse; width: 100%; font-size: 16px;">
-  <thead style="background-color: #f2f2f2;">
-    <tr>
-      <th style="text-align: left; padding: 8px;">구성 요소</th>
-      <th style="text-align: left; padding: 8px;">설명</th>
-    </tr>
-  </thead>
-  <tbody style="background-color: #ffffff;">
-    <tr>
-      <td style="padding: 8px;"><strong>UI</strong></td>
-      <td style="padding: 8px;">Streamlit 기반 채팅 인터페이스</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>문서 로더</strong></td>
-      <td style="padding: 8px;"><code>PyPDFLoader</code> (PDF → 텍스트 분할)</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>텍스트 분할기</strong></td>
-      <td style="padding: 8px;"><code>RecursiveCharacterTextSplitter</code> (chunk_size=500, overlap=100)</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>임베딩 모델</strong></td>
-      <td style="padding: 8px;">OpenAI <code>text-embedding-3-small</code></td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>벡터 DB</strong></td>
-      <td style="padding: 8px;">FAISS (로컬 저장 및 로딩 지원)</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>LLM</strong></td>
-      <td style="padding: 8px;">OpenAI <code>gpt-4o-mini</code></td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>Retriever</strong></td>
-      <td style="padding: 8px;">문서 검색 + 대화 이력 기반 <code>create_history_aware_retriever()</code></td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>QA Prompt</strong></td>
-      <td style="padding: 8px;">문서 기반 응답 생성 프롬프트 (<code>ChatPromptTemplate</code>)</td>
-    </tr>
-    <tr>
-      <td style="padding: 8px;"><strong>Chain 구성</strong></td>
-      <td style="padding: 8px;"><code>create_retrieval_chain()</code> + <code>RunnableWithMessageHistory</code></td>
-    </tr>
-  </tbody>
-</table>
+| 구성 요소       | 설명 |
+|----------------|------|
+| **UI**         | Streamlit 기반 채팅 인터페이스 |
+| **문서 로더**  | `PyPDFLoader` (PDF → 텍스트 분할) |
+| **텍스트 분할기** | `RecursiveCharacterTextSplitter` (chunk_size=500, overlap=100) |
+| **임베딩 모델** | OpenAI `text-embedding-3-small` |
+| **벡터 DB**    | FAISS (로컬 저장 및 로딩 지원) |
+| **LLM**        | OpenAI `gpt-4o-mini` |
+| **Retriever**  | 문서 검색 + 대화 이력 기반 `create_history_aware_retriever()` |
+| **QA Prompt**  | 문서 기반 응답 생성 프롬프트 (`ChatPromptTemplate`) |
+| **Chain 구성** | `create_retrieval_chain()` + `RunnableWithMessageHistory` |
