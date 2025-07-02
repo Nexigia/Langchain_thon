@@ -19,51 +19,49 @@
 
 ## 시스템 아키텍처
 
-<h2>📌 시스템 아키텍처</h2>
-
-<table>
-  <thead>
-    <tr style="background-color:#f2f2f2;">
-      <th style="text-align:left;">구성 요소</th>
-      <th style="text-align:left;">설명</th>
+<table style="border-collapse: collapse; width: 100%; font-size: 16px;">
+  <thead style="background-color: #f2f2f2;">
+    <tr>
+      <th style="text-align: left; padding: 8px;">구성 요소</th>
+      <th style="text-align: left; padding: 8px;">설명</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody style="background-color: #ffffff;">
     <tr>
-      <td><strong>UI</strong></td>
-      <td>Streamlit 기반 채팅 인터페이스</td>
+      <td style="padding: 8px;"><strong>UI</strong></td>
+      <td style="padding: 8px;">Streamlit 기반 채팅 인터페이스</td>
     </tr>
     <tr>
-      <td><strong>문서 로더</strong></td>
-      <td><code>PyPDFLoader</code> (PDF → 텍스트 분할)</td>
+      <td style="padding: 8px;"><strong>문서 로더</strong></td>
+      <td style="padding: 8px;"><code>PyPDFLoader</code> (PDF → 텍스트 분할)</td>
     </tr>
     <tr>
-      <td><strong>텍스트 분할기</strong></td>
-      <td><code>RecursiveCharacterTextSplitter</code> (chunk_size=500, overlap=100)</td>
+      <td style="padding: 8px;"><strong>텍스트 분할기</strong></td>
+      <td style="padding: 8px;"><code>RecursiveCharacterTextSplitter</code> (chunk_size=500, overlap=100)</td>
     </tr>
     <tr>
-      <td><strong>임베딩 모델</strong></td>
-      <td>OpenAI <code>text-embedding-3-small</code></td>
+      <td style="padding: 8px;"><strong>임베딩 모델</strong></td>
+      <td style="padding: 8px;">OpenAI <code>text-embedding-3-small</code></td>
     </tr>
     <tr>
-      <td><strong>벡터 DB</strong></td>
-      <td>FAISS (로컬 저장 및 로딩 지원)</td>
+      <td style="padding: 8px;"><strong>벡터 DB</strong></td>
+      <td style="padding: 8px;">FAISS (로컬 저장 및 로딩 지원)</td>
     </tr>
     <tr>
-      <td><strong>LLM</strong></td>
-      <td>OpenAI <code>gpt-4o-mini</code></td>
+      <td style="padding: 8px;"><strong>LLM</strong></td>
+      <td style="padding: 8px;">OpenAI <code>gpt-4o-mini</code></td>
     </tr>
     <tr>
-      <td><strong>Retriever</strong></td>
-      <td>문서 검색 + 대화 이력 기반 <code>create_history_aware_retriever()</code></td>
+      <td style="padding: 8px;"><strong>Retriever</strong></td>
+      <td style="padding: 8px;">문서 검색 + 대화 이력 기반 <code>create_history_aware_retriever()</code></td>
     </tr>
     <tr>
-      <td><strong>QA Prompt</strong></td>
-      <td>문서 기반 응답 생성 프롬프트 (<code>ChatPromptTemplate</code>)</td>
+      <td style="padding: 8px;"><strong>QA Prompt</strong></td>
+      <td style="padding: 8px;">문서 기반 응답 생성 프롬프트 (<code>ChatPromptTemplate</code>)</td>
     </tr>
     <tr>
-      <td><strong>Chain 구성</strong></td>
-      <td><code>create_retrieval_chain()</code> + <code>RunnableWithMessageHistory</code></td>
+      <td style="padding: 8px;"><strong>Chain 구성</strong></td>
+      <td style="padding: 8px;"><code>create_retrieval_chain()</code> + <code>RunnableWithMessageHistory</code></td>
     </tr>
   </tbody>
 </table>
